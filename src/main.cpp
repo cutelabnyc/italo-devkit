@@ -52,7 +52,15 @@ void loop()
 {
 	GPIO_read(&GPIO, &CLOCK_in, &DOWNBEAT_in, &SUBDIVISION_in, &PHASE_in, &METRIC_MODULATION_in);
 
-	MS_process();
-
+	MS_process(&messd,
+		&CLOCK_in,
+		&CLOCK_out,
+		&DOWNBEAT_in,
+		&DOWNBEAT_out,
+		&SUBDIVISION_in,
+		&SUBDIVISION_out,
+		&PHASE_in,
+		&PHASE_out,
+		METRIC_MODULATION_in);
 	GPIO_write(&GPIO, &CLOCK_out, &DOWNBEAT_out, &SUBDIVISION_out, &PHASE_out);
 }
