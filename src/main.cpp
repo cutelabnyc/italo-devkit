@@ -10,13 +10,15 @@
 #include "gpio.h"
 #include "limits.h"
 
+#define MESSD_UP 1
+
 extern "C"
 {
-#include "messd.h"
+#include "cutesynth.h"
 }
 
-messd_t messd;
 GPIO_t GPIO;
+messd_t messd;
 
 uint16_t CLOCK_in;
 uint16_t CLOCK_out;
@@ -39,7 +41,7 @@ void setup()
 
 	Serial.begin(9600);
 
-	MS_init(&messd);
+	MS_init();
 }
 
 /**
@@ -50,16 +52,7 @@ void loop()
 {
 	GPIO_read(&GPIO, &CLOCK_in, &DOWNBEAT_in, &SUBDIVISION_in, &PHASE_in, &METRIC_MODULATION_in);
 
-	MS_process(&messd,
-		&CLOCK_in,
-		&CLOCK_out,
-		&DOWNBEAT_in,
-		&DOWNBEAT_out,
-		&SUBDIVISION_in,
-		&SUBDIVISION_out,
-		&PHASE_in,
-		&PHASE_out,
-		METRIC_MODULATION_in);
+	MS_process();
 
 	GPIO_write(&GPIO, &CLOCK_out, &DOWNBEAT_out, &SUBDIVISION_out, &PHASE_out);
 }
