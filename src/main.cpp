@@ -41,7 +41,7 @@ void setup()
 
 	Serial.begin(9600);
 
-	MS_init();
+	MS_init(&messd);
 }
 
 /**
@@ -62,5 +62,6 @@ void loop()
 		&PHASE_in,
 		&PHASE_out,
 		METRIC_MODULATION_in);
+
 	GPIO_write(&GPIO, &CLOCK_out, &DOWNBEAT_out, &SUBDIVISION_out, &PHASE_out);
 }
