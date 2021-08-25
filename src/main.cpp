@@ -7,28 +7,41 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
+#define MESSD_UP 1
+
 #include "gpio.h"
 #include "limits.h"
-
-#define MESSD_UP 1
 
 extern "C"
 {
 #include "cutesynth.h"
 }
 
-GPIO_t GPIO;
-messd_t messd;
+// Struct where all the IO data will be stored
+typedef struct IO_buffer
+{
+	double in[NUM_INPUTS];
+	double out[NUM_OUTPUTS];
+} IO_buffer_t;
 
-uint16_t CLOCK_in;
-uint16_t CLOCK_out;
-uint16_t DOWNBEAT_in;
-uint16_t DOWNBEAT_out;
-uint16_t SUBDIVISION_in;
-uint16_t SUBDIVISION_out;
-uint16_t PHASE_in;
-uint16_t PHASE_out;
-bool METRIC_MODULATION_in;
+messd_t messd;
+IO_buffer_t IO_buffer;
+
+// GPIO struct for hardware IO
+pin_t GPIO_in[NUM_INPUTS] = {
+	{A6, INPUT, true}, // Clock In
+	{A3, INPUT, true}, // Downbeat in
+	{A4, INPUT, true}, // Subdivision in
+	{A7, INPUT, true}, // Phase in
+	{7, INPUT, false}   // Metric Modulation
+};
+
+pin_t GPIO_out[NUM_OUTPUTS] = {
+	{4, OUTPUT, false},  // Clock out,
+	{12, OUTPUT, false}, // Downbeat out
+	{10, OUTPUT, false}, // Subdivision out,
+	{8, OUTPUT, false},  // Phase out
+};
 
 /**
  * Initializes the ATMEGA328's pins, initializes
@@ -37,7 +50,8 @@ bool METRIC_MODULATION_in;
  **/
 void setup()
 {
-	GPIO = GPIO_init();
+	GPIO_init(GPIO_in, NUM_INPUTS);
+	GPIO_init(GPIO_out, NUM_OUTPUTS);
 
 	Serial.begin(9600);
 
@@ -50,18 +64,9 @@ void setup()
  **/
 void loop()
 {
-	GPIO_read(&GPIO, &CLOCK_in, &DOWNBEAT_in, &SUBDIVISION_in, &PHASE_in, &METRIC_MODULATION_in);
+	GPIO_read(GPIO_in, IO_buffer.in, NUM_INPUTS);
 
-	MS_process(&messd,
-		&CLOCK_in,
-		&CLOCK_out,
-		&DOWNBEAT_in,
-		&DOWNBEAT_out,
-		&SUBDIVISION_in,
-		&SUBDIVISION_out,
-		&PHASE_in,
-		&PHASE_out,
-		METRIC_MODULATION_in);
+	MS_process(&messd, IO_buffer.in, IO_buffer.out);
 
-	GPIO_write(&GPIO, &CLOCK_out, &DOWNBEAT_out, &SUBDIVISION_out, &PHASE_out);
+	GPIO_write(GPIO_out, IO_buffer.out, NUM_OUTPUTS);
 }
