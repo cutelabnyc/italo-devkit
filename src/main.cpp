@@ -7,41 +7,20 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
+ // TODO: Define as a compiler flag
 #define MESSD_UP 1
 
 #include "gpio.h"
-#include "limits.h"
 
-extern "C"
-{
-#include "cutesynth.h"
-}
+/**
+ * NOTE: After refactoring all the code below,
+ * try and get missed-opportunities in a similar place.
+ * Then try and fix your cmake bugs in cutesynth, while
+ * also moving the conditional macros to their own /modules
+ * directory
+ */
 
-// Struct where all the IO data will be stored
-typedef struct IO_buffer
-{
-	double in[NUM_INPUTS];
-	double out[NUM_OUTPUTS];
-} IO_buffer_t;
-
-messd_t messd;
 IO_buffer_t IO_buffer;
-
-// GPIO struct for hardware IO
-pin_t GPIO_in[NUM_INPUTS] = {
-	{A6, INPUT, true}, // Clock In
-	{A3, INPUT, true}, // Downbeat in
-	{A4, INPUT, true}, // Subdivision in
-	{A7, INPUT, true}, // Phase in
-	{7, INPUT, false}   // Metric Modulation
-};
-
-pin_t GPIO_out[NUM_OUTPUTS] = {
-	{4, OUTPUT, false},  // Clock out,
-	{12, OUTPUT, false}, // Downbeat out
-	{10, OUTPUT, false}, // Subdivision out,
-	{8, OUTPUT, false},  // Phase out
-};
 
 /**
  * Initializes the ATMEGA328's pins, initializes
@@ -66,6 +45,7 @@ void loop()
 {
 	GPIO_read(GPIO_in, IO_buffer.in, NUM_INPUTS);
 
+	// TODO: Define in CuteSynth
 	MS_process(&messd, IO_buffer.in, IO_buffer.out);
 
 	GPIO_write(GPIO_out, IO_buffer.out, NUM_OUTPUTS);

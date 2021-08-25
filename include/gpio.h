@@ -7,16 +7,25 @@
  * read/write wrapper functions based on the <Arduino.h> lib.
  */
 
-#include "globals.h"
 #include <Arduino.h>
-
- // Struct representing a single pin
+extern "C"
+{
+#include <cutesynth.h>
+}
+// Struct representing a single pin
 typedef struct pin
 {
 	uint8_t pin;
 	uint8_t mode;
 	bool isAnalog;
 } pin_t;
+
+// Struct where all the IO data will be stored
+typedef struct IO_buffer
+{
+	double in[NUM_INPUTS];
+	double out[NUM_OUTPUTS];
+} IO_buffer_t;
 
 /**
  * Returns the global pin IO struct
