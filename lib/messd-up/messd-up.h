@@ -1,7 +1,6 @@
 #include <Arduino.h>
-#include "gpio.h"
-
-#if MESSD_UP
+#include "../gpio.h"
+#include <modules.h>
 
 #define NUM_INPUTS 5
 #define NUM_OUTPUTS 4
@@ -23,5 +22,7 @@ pin_t GPIO_out[NUM_OUTPUTS] = {
 	{8, OUTPUT, DIGITAL}  // Phase out
 };
 
-#elif MISSED_OPPORTUNITIES
-#endif
+messd_t messd;
+
+void MAIN_init();
+void MAIN_process(double *in, double *out);

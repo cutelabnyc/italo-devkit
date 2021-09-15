@@ -7,8 +7,7 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
-
-#include "moduleIO.h"
+#include "messd-up.h"
 
  // Struct where all the IO data will be stored
 typedef struct IO_buffer
@@ -31,8 +30,7 @@ void setup()
 
 	Serial.begin(9600);
 
-	MAIN_fpointers_init();
-	MAIN_init_f(&messd);
+	MAIN_init();
 }
 
 /**
@@ -43,7 +41,7 @@ void loop()
 {
 	GPIO_read(GPIO_in, IO_buffer.in, NUM_INPUTS);
 
-	MAIN_process_f(&messd, IO_buffer.in, IO_buffer.out);
+	MAIN_process(IO_buffer.in, IO_buffer.out);
 
 	GPIO_write(GPIO_out, IO_buffer.out, NUM_OUTPUTS);
 }
