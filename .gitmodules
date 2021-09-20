@@ -1,0 +1,3 @@
+[submodule "lib/cutesynth"]
+	path = lib/cutesynth
+	url = https://github.com/cutelabnyc/cutesynth

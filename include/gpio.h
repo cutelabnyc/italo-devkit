@@ -6,18 +6,14 @@
  * structure for the pin layout used on the ATMEGA328, as well as
  * read/write wrapper functions based on the <Arduino.h> lib.
  */
+#pragma once
 
 #include <Arduino.h>
-
-extern "C"
-{
-#include "cutesynth.h"
-}
 
 #define DIGITAL 0x0
 #define ANALOG 0x1
 
-// Struct representing a single pin
+ // Struct representing a single pin
 typedef struct pin
 {
 	uint8_t pin;
@@ -28,7 +24,7 @@ typedef struct pin
 /**
  * Returns the global pin IO struct
  */
-void GPIO_init(pin_t *self, uint8_t numArgs)
+static void GPIO_init(pin_t *self, uint8_t numArgs)
 {
 	for (int i = 0; i < numArgs; i++)
 	{
@@ -39,7 +35,7 @@ void GPIO_init(pin_t *self, uint8_t numArgs)
 /**
  * Reads incoming data from all inputs
  */
-void GPIO_read(pin_t *self, double *inputValues, uint8_t numArgs)
+static void GPIO_read(pin_t *self, double *inputValues, uint8_t numArgs)
 {
 	for (int i = 0; i < numArgs; i++)
 	{
@@ -53,7 +49,7 @@ void GPIO_read(pin_t *self, double *inputValues, uint8_t numArgs)
 /**
  * Writes data to all outputs
  */
-void GPIO_write(pin_t *self, double *outputValues, uint8_t numArgs)
+static void GPIO_write(pin_t *self, double *outputValues, uint8_t numArgs)
 {
 	for (int i = 0; i < numArgs; i++)
 	{
