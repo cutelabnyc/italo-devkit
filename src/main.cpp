@@ -10,27 +10,30 @@
 #include "interfaces.h"
 
  // Struct where all the IO data will be stored
- // typedef struct IO_buffer
- // {
- // 	double in[NUM_INPUTS];
- // 	double out[NUM_OUTPUTS];
- // } IO_buffer_t;
+typedef struct IO_buffer
+{
+	double *ins;
+	double *outs;
+} IO_buffer_t;
 
- // IO_buffer_t IO_buffer;
+IO_buffer_t IO_buffer;
 
- /**
-  * Initializes the ATMEGA328's pins, initializes
-  * the other structs' variables, starts off the Serial
-  * monitor for possible debugging
-  **/
+/**
+ * Initializes the ATMEGA328's pins, initializes
+ * the other structs' variables, starts off the Serial
+ * monitor for possible debugging
+ **/
 void setup()
 {
-	// GPIO_init(GPIO_in, NUM_INPUTS);
-	// GPIO_init(GPIO_out, NUM_OUTPUTS);
+	GPIO_init(GPIO_in, numInputs);
+	GPIO_init(GPIO_out, numOutputs);
 
 	Serial.begin(9600);
 
-	// MAIN_init();
+	IO_buffer.ins = (double *)malloc(sizeof(double) * numInputs);
+	IO_buffer.outs = (double *)malloc(sizeof(double) * numOutputs);
+
+	main_init();
 }
 
 /**
@@ -39,10 +42,9 @@ void setup()
  **/
 void loop()
 {
-	// GPIO_read(GPIO_in, IO_buffer.in, NUM_INPUTS);
+	GPIO_read(GPIO_in, IO_buffer.ins, numInputs);
 
-	// MAIN_process(IO_buffer.in, IO_buffer.out);
+	main_process();
 
-	// GPIO_write(GPIO_out, IO_buffer.out, NUM_OUTPUTS);
-	Serial.println(dumbFunction());
+	GPIO_write(GPIO_out, IO_buffer.outs, numOutputs);
 }
