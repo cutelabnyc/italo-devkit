@@ -7,16 +7,9 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
-#include "interfaces.h"
+#include "interfaces.hpp"
 
- // Struct where all the IO data will be stored
-typedef struct IO_buffer
-{
-	double *ins;
-	double *outs;
-} IO_buffer_t;
-
-IO_buffer_t IO_buffer;
+ModuleInterface *module = buildModule();
 
 /**
  * Initializes the ATMEGA328's pins, initializes
@@ -25,15 +18,12 @@ IO_buffer_t IO_buffer;
  **/
 void setup()
 {
-	GPIO_init(GPIO_in, numInputs);
-	GPIO_init(GPIO_out, numOutputs);
+	GPIO_init(module->getInputPinSchematic(), module->getNumInputs());
+	GPIO_init(module->getOutputPinSchematic(), module->getNumOutputs());
 
 	Serial.begin(9600);
 
-	IO_buffer.ins = (double *)malloc(sizeof(double) * numInputs);
-	IO_buffer.outs = (double *)malloc(sizeof(double) * numOutputs);
-
-	main_init();
+	module->init();
 }
 
 /**
@@ -42,9 +32,9 @@ void setup()
  **/
 void loop()
 {
-	GPIO_read(GPIO_in, IO_buffer.ins, numInputs);
+	GPIO_read(module->getInputPinSchematic(), module->getInputBuffer(), module->getNumInputs());
 
-	main_process();
+	module->process();
 
-	GPIO_write(GPIO_out, IO_buffer.outs, numOutputs);
+	GPIO_write(module->getOutputPinSchematic(), module->getOutputBuffer(), module->getNumOutputs());
 }
