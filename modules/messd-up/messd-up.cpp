@@ -1,4 +1,4 @@
-// #include "interfaces.h"
+#include "interfaces.h"
 #include <cutemodules.h>
 
 // class Module : public ModuleInterface<messd_t, messd_ins_t, messd_outs_t> {

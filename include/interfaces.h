@@ -5,37 +5,29 @@
 
 #include <gpio.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// using namespace std;
 
-	// using namespace std;
+// template <typename M, typename Ins, typename Outs>
+// class ModuleInterface {
+// private:
+// 	uint8_t numInputs;
+// 	uint8_t numOutputs;
 
-	// template <typename M, typename Ins, typename Outs>
-	// class ModuleInterface {
-	// private:
-	// 	uint8_t numInputs;
-	// 	uint8_t numOutputs;
+// public:
+// 	virtual void init(M self) = 0;
+// 	virtual void process(M self, Ins ins, Outs outs) = 0;
 
-	// public:
-	// 	virtual void init(M self) = 0;
-	// 	virtual void process(M self, Ins ins, Outs outs) = 0;
+// 	pin_t *GPIO_in;
+// 	pin_t *GPIO_out;
+// };
 
-	// 	pin_t *GPIO_in;
-	// 	pin_t *GPIO_out;
-	// };
+uint8_t numInputs;
+uint8_t numOutputs;
 
-	uint8_t numInputs;
-	uint8_t numOutputs;
+pin_t *GPIO_in;
+pin_t *GPIO_out;
 
-	pin_t *GPIO_in;
-	pin_t *GPIO_out;
-
-	void main_init();
-	void main_process();
-
-#ifdef __cplusplus
-}
-#endif
+void main_init();
+void main_process();
 
 #endif // INTERFACE_H
