@@ -7,9 +7,9 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
-#include "interfaces.hpp"
+#include <interfaces.hpp>
 
-ModuleInterface *module = buildModule();
+ModuleInterface<double> *module = buildModule();
 
 /**
  * Initializes the ATMEGA328's pins, initializes
@@ -32,9 +32,9 @@ void setup()
  **/
 void loop()
 {
-	GPIO_read(module->getInputPinSchematic(), module->getInputBuffer(), module->getNumInputs());
+	GPIO_read(module->getInputPinSchematic(), module->getBuffer(INPUT), module->getNumInputs());
 
 	module->process();
 
-	GPIO_write(module->getOutputPinSchematic(), module->getOutputBuffer(), module->getNumOutputs());
+	GPIO_write(module->getOutputPinSchematic(), module->getBuffer(OUTPUT), module->getNumOutputs());
 }
