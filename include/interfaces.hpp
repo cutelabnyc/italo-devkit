@@ -1,4 +1,4 @@
-#include <gpio.h>
+#include <gpio.hpp>
 
 using namespace std;
 

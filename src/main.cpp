@@ -7,7 +7,7 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
-#include "interfaces.hpp"
+#include <interfaces.hpp>
 
 ModuleInterface *module = buildModule();
 
