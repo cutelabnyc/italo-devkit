@@ -2,11 +2,11 @@
 
 void Module::_scaleValues()
 {
-	this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
-	this->ins.beatsPerMeasure = (this->ins.beatsPerMeasure > 0 ? this->ins.beatsPerMeasure : 1);
-	this->ins.subdivisionsPerMeasure = (this->ins.subdivisionsPerMeasure > 0 ? this->ins.subdivisionsPerMeasure : 1);
-	this->ins.phase = (this->ins.phase <= 1 && ins.phase >= 0 ? this->ins.phase : 0);
-	this->ins.pulseWidth = (this->ins.pulseWidth < 1 && this->ins.pulseWidth > 0 ? this->ins.pulseWidth : 0.5);
+	this->messd.ins.tempo = (this->messd.ins.tempo > 0 ? this->messd.ins.tempo : 1);
+	this->messd.ins.beatsPerMeasure = (this->messd.ins.beatsPerMeasure > 0 ? this->messd.ins.beatsPerMeasure : 1);
+	this->messd.ins.subdivisionsPerMeasure = (this->messd.ins.subdivisionsPerMeasure > 0 ? this->messd.ins.subdivisionsPerMeasure : 1);
+	this->messd.ins.phase = (this->messd.ins.phase <= 1 && messd.ins.phase >= 0 ? this->messd.ins.phase : 0);
+	this->messd.ins.pulseWidth = (this->messd.ins.pulseWidth < 1 && this->messd.ins.pulseWidth > 0 ? this->messd.ins.pulseWidth : 0.5);
 }
 
 Module::Module(uint8_t numInputs, uint8_t numOutputs)
@@ -20,39 +20,39 @@ Module::Module(uint8_t numInputs, uint8_t numOutputs)
 
 void Module::init()
 {
-	MS_init(&this->messd);
+	MS_init(&this->messd.module);
 };
 
 void Module::process()
 {
-	this->ins.delta = 1000.0 / 1000.0;
-	this->ins.tempo = this->IO_buffer.inputBuffer[TEMPO];
-	// this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
-	// this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
-	// this->ins.phase = this->inputBuffer[PHASE];
-	this->ins.beatsPerMeasure = 2;
-	this->ins.subdivisionsPerMeasure = 3;
-	this->ins.phase = 0;
+	this->messd.ins.delta = 1000.0 / 1000.0;
+	this->messd.ins.tempo = this->IO_buffer.inputBuffer[TEMPO];
+	// this->messd.ins.beatsPerMeasure = this->inputBuffer[BEATS];
+	// this->messd.ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
+	// this->messd.ins.phase = this->inputBuffer[PHASE];
+	this->messd.ins.beatsPerMeasure = 2;
+	this->messd.ins.subdivisionsPerMeasure = 3;
+	this->messd.ins.phase = 0;
 
-	this->ins.ext_clock = 0;
+	this->messd.ins.ext_clock = 0;
 
-	this->ins.metricModulation = 0;
-	this->ins.latchToDownbeat = 0;
-	this->ins.invert = 0;
-	this->ins.isRoundTrip = 0;
-	this->ins.reset = 0;
+	this->messd.ins.metricModulation = 0;
+	this->messd.ins.latchToDownbeat = 0;
+	this->messd.ins.invert = 0;
+	this->messd.ins.isRoundTrip = 0;
+	this->messd.ins.reset = 0;
 
-	this->ins.wrap = 0;
-	this->ins.pulseWidth = 0.5;
+	this->messd.ins.wrap = 0;
+	this->messd.ins.pulseWidth = 0.5;
 
 	_scaleValues();
 
-	MS_process(&this->messd, &this->ins, &this->outs);
+	MS_process(&this->messd.module, &this->messd.ins, &this->messd.outs);
 
-	this->IO_buffer.outputBuffer[BEATS_OUT] = this->outs.beat;
-	this->IO_buffer.outputBuffer[SUBDIVISIONS_OUT] = this->outs.subdivision;
-	this->IO_buffer.outputBuffer[DOWNBEAT_OUT] = this->outs.downbeat;
-	this->IO_buffer.outputBuffer[PHASE_OUT] = this->outs.phase;
+	this->IO_buffer.outputBuffer[BEATS_OUT] = this->messd.outs.beat;
+	this->IO_buffer.outputBuffer[SUBDIVISIONS_OUT] = this->messd.outs.subdivision;
+	this->IO_buffer.outputBuffer[DOWNBEAT_OUT] = this->messd.outs.downbeat;
+	this->IO_buffer.outputBuffer[PHASE_OUT] = this->messd.outs.phase;
 };
 
 pin_t *Module::getInputPinSchematic()

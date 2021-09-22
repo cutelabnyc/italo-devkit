@@ -37,6 +37,8 @@ protected:
 	uint8_t numInputs;
 	uint8_t numOutputs;
 
+	// TUPLES?
+
 	struct IO_BUFFER {
 		T *inputBuffer;
 		T *outputBuffer;
@@ -47,7 +49,7 @@ protected:
 		Module module;
 		Ins ins;
 		Outs outs;
-	} moduleIO_t;
+	};
 };
 
 ModuleInterface<double> *buildModule();

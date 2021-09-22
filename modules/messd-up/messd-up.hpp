@@ -38,9 +38,7 @@ private:
 		PHASE_OUT,
 	} outputNames_t;
 
-	messd_t messd;
-	messd_ins_t ins;
-	messd_outs_t outs;
+	moduleIO<messd_t, messd_ins_t, messd_outs_t> messd;
 
 	void _scaleValues();
 
