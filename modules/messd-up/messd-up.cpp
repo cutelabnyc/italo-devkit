@@ -37,7 +37,7 @@ void Module::process()
 	this->messd.ins.ext_clock = 0;
 
 	this->messd.ins.metricModulation = 0;
-	this->messd.ins.latchToDownbeat = 0;
+	this->messd.ins.latchChangesToDownbeat= 0;
 	this->messd.ins.invert = 0;
 	this->messd.ins.isRoundTrip = 0;
 	this->messd.ins.reset = 0;
