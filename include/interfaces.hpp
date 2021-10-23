@@ -11,16 +11,20 @@ public:
 	virtual pin_t *getInputPinSchematic();
 	virtual pin_t *getOutputPinSchematic();
 
-	double *getBuffer(uint8_t IO_type)
-	{
+	T *getBuffer(uint8_t IO_type)
+	{   
+        T* buffer;
+
 		if (IO_type == INPUT)
 		{
-			return this->IO_buffer.inputBuffer;
+			buffer = this->IO_buffer.inputBuffer;
 		}
 		else if (IO_type == OUTPUT)
 		{
-			return this->IO_buffer.outputBuffer;
+			buffer = this->IO_buffer.outputBuffer;
 		}
+
+        return buffer;
 	};
 
 	uint8_t getNumInputs()

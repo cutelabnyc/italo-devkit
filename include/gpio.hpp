@@ -34,7 +34,8 @@ static void GPIO_init(pin_t *self, uint8_t numArgs)
 /**
  * Reads incoming data from all inputs
  */
-static void GPIO_read(pin_t *self, double *inputValues, uint8_t numArgs)
+template<typename T>
+static void GPIO_read(pin_t *self, T *inputValues, uint8_t numArgs)
 {
 	for (int i = 0; i < numArgs; i++)
 	{
@@ -48,7 +49,8 @@ static void GPIO_read(pin_t *self, double *inputValues, uint8_t numArgs)
 /**
  * Writes data to all outputs
  */
-static void GPIO_write(pin_t *self, double *outputValues, uint8_t numArgs)
+template<typename T>
+static void GPIO_write(pin_t *self, T *outputValues, uint8_t numArgs)
 {
 	for (int i = 0; i < numArgs; i++)
 	{
