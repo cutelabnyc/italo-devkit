@@ -1,61 +1,47 @@
-#include <gpio.hpp>
+#include <parameter.hpp>
 
 using namespace std;
 
-template<typename T>
-class ModuleInterface {
+template <typename T> class ModuleInterface {
 public:
-	virtual void init();
-	virtual void process();
+  virtual void init();
+  virtual void process();
 
-	virtual pin_t *getInputPinSchematic();
-	virtual pin_t *getOutputPinSchematic();
+  virtual pin_t *getInputPinSchematic();
+  virtual pin_t *getOutputPinSchematic();
 
-	T *getBuffer(uint8_t IO_type)
-	{   
-        T* buffer;
+  T *getBuffer(uint8_t IO_type) {
+    T *buffer;
 
-		if (IO_type == INPUT)
-		{
-			buffer = this->IO_buffer.inputBuffer;
-		}
-		else if (IO_type == OUTPUT)
-		{
-			buffer = this->IO_buffer.outputBuffer;
-		}
+    if (IO_type == INPUT) {
+      buffer = this->IO_buffer.inputBuffer;
+    } else if (IO_type == OUTPUT) {
+      buffer = this->IO_buffer.outputBuffer;
+    }
 
-        return buffer;
-	};
+    return buffer;
+  };
 
-	uint8_t getNumInputs()
-	{
-		return this->numInputs;
-	};
+  uint8_t getNumInputs() { return this->numInputs; };
 
-	uint8_t getNumOutputs()
-	{
-		return this->numOutputs;
-	}
+  uint8_t getNumOutputs() { return this->numOutputs; }
 
 protected:
-	uint8_t numInputs;
-	uint8_t numOutputs;
+  uint8_t numInputs;
+  uint8_t numOutputs;
 
-	// TUPLES?
+  // TUPLES?
+  Parameter *parameter;
+  struct IO_BUFFER {
+    T *inputBuffer;
+    T *outputBuffer;
+  } IO_buffer;
 
-	struct IO_BUFFER {
-		T *inputBuffer;
-		T *outputBuffer;
-	} IO_buffer;
-
-	template<typename Module, typename Ins, typename Outs>
-	struct moduleIO{
-		Module module;
-		Ins ins;
-		Outs outs;
-	};
+  template <typename Module, typename Ins, typename Outs> struct moduleIO {
+    Module module;
+    Ins ins;
+    Outs outs;
+  };
 };
 
 ModuleInterface<double> *buildModule();
-
-
