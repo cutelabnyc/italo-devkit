@@ -26,6 +26,7 @@ After creating a feature branch and making your changes, you can build locally w
 To perform unit testing and building without the board plugged in you can simply run
 
 ```
+pio platform install native
 pio test -e native && pio run
 ```
 

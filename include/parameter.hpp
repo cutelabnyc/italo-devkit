@@ -7,26 +7,41 @@
  * read/write wrapper functions based on the <Arduino.h> lib.
  */
 #include <Arduino.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 #define DIGITAL 0x0
 #define ANALOG 0x1
 
-template <typename T> class Parameter {
+class ParamTree {
 public:
-  Parameter() { pinMode(this.pin, this.mode); }
+  virtual void read();
+  virtual void write();
+
+protected:
+  uint8_t numParams;
+};
+
+template <typename T> class Parameter : public ParamTree {
+public:
+  Parameter(uint8_t pin, uint8_t mode, bool isAnalog) {
+    pinMode(pin, mode);
+    this->val = 0;
+    this->isAnalog = isAnalog;
+  }
 
   void read() {
-    if (this.isAnalog)
-      val = (T)analogRead(this.pin);
+    if (this->isAnalog)
+      val = (T)analogRead(this->pin);
     else
-      val = (T)digitalRead(this.pin);
+      val = (T)digitalRead(this->pin);
   };
 
   void write() {
-    if (this.isAnalog)
-      analogWrite(this.pin, this.val);
+    if (this->isAnalog)
+      analogWrite(this->pin, this->val);
     else
-      digitalWrite(this.pin, this.val);
+      digitalWrite(this->pin, this->val);
   };
 
 private:

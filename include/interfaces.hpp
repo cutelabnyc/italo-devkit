@@ -1,41 +1,55 @@
-#include <parameter.hpp>
+#include "parameter.hpp"
 
-using namespace std;
+#define NUM_INPUTS 5
+#define NUM_OUTPUTS 4
 
 template <typename T> class ModuleInterface {
 public:
   virtual void init();
   virtual void process();
 
-  virtual pin_t *getInputPinSchematic();
-  virtual pin_t *getOutputPinSchematic();
+  ModuleInterface(uint8_t numInputs, uint8_t numOutputs) {
+    for (int i = 0; i < numInputs; i++) {
+      inBuffer[i] = new Parameter<float>(A5, INPUT, true); /* YAML */
+    }
+    for (int i = 0; i < numOutputs; i++) {
+      outBuffer[i] = new Parameter<double>(3, OUTPUT, false); /* YAML */
+    }
+  };
 
-  T *getBuffer(uint8_t IO_type) {
-    T *buffer;
+  ~ModuleInterface() {
+    delete inBuffer[NUM_INPUTS];
+    delete outBuffer[NUM_OUTPUTS];
+  };
+
+  ParamTree *getIObuffer(uint8_t IO_type) {
+    ParamTree *buffer;
 
     if (IO_type == INPUT) {
-      buffer = this->IO_buffer.inputBuffer;
+      buffer = this->inputs;
     } else if (IO_type == OUTPUT) {
-      buffer = this->IO_buffer.outputBuffer;
+      buffer = this->outputs;
     }
 
     return buffer;
   };
 
-  uint8_t getNumInputs() { return this->numInputs; };
+  void readAll() {
+    for (int i = 0; i < NUM_INPUTS; i++) {
+      inBuffer[i]->read();
+    }
+  };
 
-  uint8_t getNumOutputs() { return this->numOutputs; }
+  void writeAll() {
+    for (int i = 0; i < NUM_OUTPUTS; i++) {
+      outBuffer[i]->write();
+    }
+  };
 
 protected:
-  uint8_t numInputs;
-  uint8_t numOutputs;
-
-  // TUPLES?
-  Parameter *parameter;
-  struct IO_BUFFER {
-    T *inputBuffer;
-    T *outputBuffer;
-  } IO_buffer;
+  // TODO: Tuple?
+  ParamTree *inBuffer[NUM_INPUTS];
+  ParamTree *outBuffer[NUM_OUTPUTS];
 
   template <typename Module, typename Ins, typename Outs> struct moduleIO {
     Module module;
@@ -44,4 +58,6 @@ protected:
   };
 };
 
-ModuleInterface<double> *buildModule();
+ModuleInterface<double> *buildModule() {
+  return new ModuleInterface<double>(NUM_INPUTS, NUM_OUTPUTS);
+}
