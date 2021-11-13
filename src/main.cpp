@@ -9,7 +9,7 @@
 
 #include <interfaces.hpp>
 
-ModuleInterface<double> *module = buildModule();
+ModuleInterface *module = buildModule();
 
 /**
  * Initializes the ATMEGA328's pins, initializes

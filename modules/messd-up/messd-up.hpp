@@ -5,7 +5,7 @@
 #define NUM_INPUTS 5
 #define NUM_OUTPUTS 4
 
-static pin_t inputPinSchematic[] = {
+static uint8_t inputPinSchematic[4][5] = {
     {TEMPO, A6, INPUT, ANALOG, double},          // Clock In
     {BEATS, A3, INPUT, ANALOG, uint8_t},         // Downbeat in
     {SUBDIVISIONS, A4, INPUT, ANALOG, uint8_t},  // Subdivision in
@@ -20,11 +20,13 @@ static pin_t outputPinSchematic[] = {
     {PHASE_OUT, 8, OUTPUT, DIGITAL, bool}          // Phase out
 };
 
+// Add enums for parameters
+
 // const & inputSchematic argument
 //  See:
 //  https://stackoverflow.com/questions/31211319/no-matching-function-for-call-to-class-constructor
 
-class Module : public ModuleInterface<double> {
+class Module : public ModuleInterface {
 private:
   moduleIO<messd_t, messd_ins_t, messd_outs_t> messd;
 

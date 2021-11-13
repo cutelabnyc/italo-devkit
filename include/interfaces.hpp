@@ -3,7 +3,7 @@
 #define NUM_INPUTS 5
 #define NUM_OUTPUTS 4
 
-template <typename T> class ModuleInterface {
+class ModuleInterface {
 public:
   virtual void init();
   virtual void process();
@@ -17,18 +17,18 @@ public:
     }
   };
 
-  ~ModuleInterface() {
-    delete inBuffer[NUM_INPUTS];
-    delete outBuffer[NUM_OUTPUTS];
-  };
+  // ~ModuleInterface() {
+  //   delete inBuffer[NUM_INPUTS];
+  //   delete outBuffer[NUM_OUTPUTS];
+  // };
 
-  ParamTree *getIObuffer(uint8_t IO_type) {
-    ParamTree *buffer;
+  ParamTree **getIObuffer(uint8_t IO_type) {
+    ParamTree **buffer;
 
     if (IO_type == INPUT) {
-      buffer = this->inputs;
+      buffer = this->inBuffer;
     } else if (IO_type == OUTPUT) {
-      buffer = this->outputs;
+      buffer = this->outBuffer;
     }
 
     return buffer;
@@ -58,6 +58,6 @@ protected:
   };
 };
 
-ModuleInterface<double> *buildModule() {
-  return new ModuleInterface<double>(NUM_INPUTS, NUM_OUTPUTS);
+ModuleInterface *buildModule() {
+  return new ModuleInterface(NUM_INPUTS, NUM_OUTPUTS);
 }
