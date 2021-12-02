@@ -1,23 +1,33 @@
-#include <interfaces.hpp>
 #include <pass-thru.h>
 #include <stdio.h>
 #include <unity.h>
 
-passthru_t pt;
+messd_t messd;
 
 void setUp(void) {
   // set stuff up here
-  ModuleInterface<double> *module = buildModule();
-  module->init();
+  PT_init(&pt);
 }
 
 void tearDown(void) {
   // clean stuff up here
+  PT_destroy(&pt);
 }
 
 void test_pt(void) {
-  module->readParameters()
+  uint16_t in_data[4][2] = {{0, 1}, {0, 2}, {0, 3}, {0, 4}};
+  uint16_t out_data[4][2];
+
+  for (uint8_t s = 0; s < 4; s++) {
+    PT_process(&pt, in_data[s], out_data[s], 2);
+    printf("%hn", in_data[s]);
+  }
+
+  for (uint8_t c = 0; c < 2; c++) {
+    for (uint8_t s = 0; s < 4; s++) {
       TEST_ASSERT_EQUAL_UINT16(in_data[s][c], out_data[s][c]);
+    }
+  }
 }
 
 int main(int argc, char **argv) {

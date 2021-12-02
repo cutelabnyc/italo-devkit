@@ -16,25 +16,18 @@ ModuleInterface<double> *module = buildModule();
  * the other structs' variables, starts off the Serial
  * monitor for possible debugging
  **/
-void setup()
-{
-	GPIO_init(module->getInputPinSchematic(), module->getNumInputs());
-	GPIO_init(module->getOutputPinSchematic(), module->getNumOutputs());
+void setup() {
+  Serial.begin(9600);
 
-	Serial.begin(9600);
-
-	module->init();
+  module->init();
 }
 
 /**
  * The three step process consists of reading GPIO values,
  * processing the data, and writing the output values.
  **/
-void loop()
-{
-	GPIO_read(module->getInputPinSchematic(), module->getBuffer(INPUT), module->getNumInputs());
-
-	module->process();
-
-	GPIO_write(module->getOutputPinSchematic(), module->getBuffer(OUTPUT), module->getNumOutputs());
+void loop() {
+  module->readParameters();
+  module->process();
+  module->writeParameters();
 }
