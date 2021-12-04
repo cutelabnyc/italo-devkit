@@ -19,18 +19,19 @@ void Module::_scaleValues() {
            : 0.5);
 }
 
-Module::Module(uint8_t numInputs, uint8_t numOutputs, pin *inputPinSchematic,
-               pin *outputPinSchematic) {
+Module::Module(uint8_t numInputs, uint8_t numOutputs,
+               PIN<double> *inputPinSchematic,
+               PIN<double> *outputPinSchematic) {
   this->numInputs = numInputs;
   this->numOutputs = numOutputs;
 
   for (int i = 0; i < numInputs; i++) {
     this->IO_buffer.inputs[i] = Parameter<double>(inputPinSchematic[i].address,
                                                   inputPinSchematic[i].isAnalog,
-                                                  inputPinSchematic[i].IO_type);
+                                                  inputPinSchematic[i].mode);
     this->IO_buffer.outputs[i] = Parameter<double>(
         outputPinSchematic[i].address, outputPinSchematic[i].isAnalog,
-        outputPinSchematic[i].IO_type);
+        outputPinSchematic[i].mode);
   }
 };
 

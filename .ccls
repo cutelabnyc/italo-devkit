@@ -1,0 +1,30 @@
+clang
+
+%c -std=gnu11 -fno-fat-lto-objects -Os -Wall -ffunction-sections -fdata-sections -flto -mmcu=atmega328p
+%cpp -fno-exceptions -fno-threadsafe-statics -fpermissive -std=gnu++11 -Os -Wall -ffunction-sections -fdata-sections -flto -mmcu=atmega328p
+
+-I/home/maxwell/Projects/CuteLab/italo-devkit/include
+-I/home/maxwell/Projects/CuteLab/italo-devkit/src
+-I/home/maxwell/Projects/CuteLab/italo-devkit/.pio/libdeps/uno/modules
+-I/home/maxwell/Projects/CuteLab/italo-devkit/.pio/libdeps/uno/core
+-I/home/maxwell/Projects/CuteLab/italo-devkit/lib/cutesynth/src/modules
+-I/home/maxwell/Projects/CuteLab/italo-devkit/lib/cutesynth/src/core
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/cores/arduino
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/variants/standard
+-I/home/maxwell/Projects/CuteLab/italo-devkit/lib/cutesynth/src
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/libraries/HID/src
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/libraries/SPI/src
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src
+-I/home/maxwell/.platformio/packages/framework-arduino-avr/libraries/Wire/src
+-I/home/maxwell/.platformio/packages/toolchain-atmelavr/lib/gcc/avr/7.3.0/include-fixed
+-I/home/maxwell/.platformio/packages/toolchain-atmelavr/lib/gcc/avr/7.3.0/include
+-I/home/maxwell/.platformio/packages/toolchain-atmelavr/avr/include
+-I/home/maxwell/.platformio/packages/tool-unity
+
+-DPLATFORMIO=50101
+-DARDUINO_AVR_UNO
+-DF_CPU=16000000L
+-DARDUINO_ARCH_AVR
+-DARDUINO=10808
+-D__AVR_ATmega328P__

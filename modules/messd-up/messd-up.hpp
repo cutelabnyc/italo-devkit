@@ -6,51 +6,45 @@
 #define NUM_OUTPUTS 4
 #define NUM_PIN_ITEMS 3
 
-struct pin {
-  uint8_t address;
-  uint8_t IO_type;
-  bool isAnalog;
-} pin_t;
+typedef enum inputNames {
+  TEMPO,
+  BEATS,
+  SUBDIVISION,
+  PHASE,
+  METRIC_MODULATION
+} inputNames_t;
 
-static pin inputPinSchematic[] = {
-    {A6, INPUT, ANALOG}, // Clock In
-    {A3, INPUT, ANALOG}, // Downbeat in
-    {A4, INPUT, ANALOG}, // Subdivision in
-    {A7, INPUT, ANALOG}, // Phase in
-    {7, INPUT, DIGITAL}  // Metric Modulation
+typedef enum outputNames {
+  BEATS_OUT,
+  DOWNBEAT_OUT,
+  SUBDIVISIONS_OUT,
+  PHASE_OUT
+} outputNames_t;
+
+static PIN<double> inputPinSchematic[] = {
+    {TEMPO, A6, INPUT, 0, ANALOG},            // Clock In
+    {BEATS, A3, INPUT, 0, ANALOG},            // Downbeat in
+    {SUBDIVISION, A4, INPUT, 0, ANALOG},      // Subdivision in
+    {PHASE, A7, INPUT, 0, ANALOG},            // Phase in
+    {METRIC_MODULATION, 7, INPUT, 0, DIGITAL} // Metric Modulation
 };
 
-static pin outputPinSchematic[] = {
-    {4, OUTPUT, DIGITAL},  // Clock out,
-    {12, OUTPUT, DIGITAL}, // Downbeat out
-    {10, OUTPUT, DIGITAL}, // Subdivision out,
-    {8, OUTPUT, DIGITAL}   // Phase out
+static PIN<double> outputPinSchematic[] = {
+    {BEATS_OUT, 4, OUTPUT, 0, DIGITAL},         // Clock out,
+    {DOWNBEAT_OUT, 12, OUTPUT, 0, DIGITAL},     // Downbeat out
+    {SUBDIVISIONS_OUT, 10, OUTPUT, 0, DIGITAL}, // Subdivision out,
+    {PHASE_OUT, 8, OUTPUT, 0, DIGITAL}          // Phase out
 };
 
 class Module : public ModuleInterface<double> {
 private:
-  typedef enum inputNames {
-    TEMPO,
-    BEATS,
-    SUBDIVISIONS,
-    PHASE,
-    METRIC_MODULATION
-  } inputNames_t;
-
-  typedef enum outputNames {
-    BEATS_OUT,
-    DOWNBEAT_OUT,
-    SUBDIVISIONS_OUT,
-    PHASE_OUT,
-  } outputNames_t;
-
   moduleIO<messd_t, messd_ins_t, messd_outs_t> messd;
 
   void _scaleValues();
 
 public:
-  Module(uint8_t numInputs, uint8_t numOutputs, pin *inputPinSchematic,
-         pin *outputPinSchematic);
+  Module(uint8_t numInputs, uint8_t numOutputs, PIN<double> *inputPinSchematic,
+         PIN<double> *outputPinSchematic);
 
   void init();
   void process();
