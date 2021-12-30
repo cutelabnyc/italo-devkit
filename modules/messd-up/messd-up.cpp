@@ -14,7 +14,7 @@ static pin_t _inputPinSchematic[] = {
 };
 
 static pin_t _outputPinSchematic[] = {
-    {4, OUTPUT, DIGITAL},  // Clock out,
+    {11, OUTPUT, DIGITAL}, // Clock out,
     {12, OUTPUT, DIGITAL}, // Downbeat out
     {10, OUTPUT, DIGITAL}, // Subdivision out,
     {8, OUTPUT, DIGITAL}   // Phase out
@@ -59,6 +59,8 @@ private:
 
 public:
   Module(uint8_t numInputs, uint8_t numOutputs) {
+    this->numInputs = numInputs;
+    this->numOutputs = numOutputs;
     this->inputBuffer = (double *)malloc(sizeof(double) * numInputs);
     this->outputBuffer = (double *)malloc(sizeof(double) * numOutputs);
   };
@@ -67,7 +69,8 @@ public:
 
   void process() {
     this->ins.delta = 1000.0 / 1000.0;
-    this->ins.tempo = this->inputBuffer[TEMPO];
+    /* this->ins.tempo = this->inputBuffer[TEMPO]; */
+    this->ins.tempo = 120;
     // this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
     // this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
     // this->ins.phase = this->inputBuffer[PHASE];
@@ -76,7 +79,7 @@ public:
     this->ins.phase = 0;
 
     this->ins.ext_clock = 0;
-
+    this->ins.ext_clock_connected = 0;
     this->ins.metricModulation = 0;
     this->ins.latchChangesToDownbeat = 0;
     this->ins.invert = 0;
