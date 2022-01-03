@@ -5,7 +5,7 @@
 #define NUM_INPUTS 5
 #define NUM_OUTPUTS 4
 
-static pin_t _inputPinSchematic[] = {
+static pin_t inputPinSchematic[] = {
     {A6, INPUT, ANALOG}, // Clock In
     {A3, INPUT, ANALOG}, // Downbeat in
     {A4, INPUT, ANALOG}, // Subdivision in
@@ -13,22 +13,27 @@ static pin_t _inputPinSchematic[] = {
     {7, INPUT, DIGITAL}  // Metric Modulation
 };
 
-static pin_t _outputPinSchematic[] = {
+static pin_t outputPinSchematic[] = {
     {4, OUTPUT, DIGITAL},  // Clock out,
     {12, OUTPUT, DIGITAL}, // Downbeat out
     {10, OUTPUT, DIGITAL}, // Subdivision out,
     {8, OUTPUT, DIGITAL}   // Phase out
 };
 
-static void _scaleValues(messd_ins_t *ins) {
-  ins->tempo = (ins->tempo > 0 ? ins->tempo : 1);
-  ins->beatsPerMeasure = (ins->beatsPerMeasure > 0 ? ins->beatsPerMeasure : 1);
-  ins->subdivisionsPerMeasure =
-      (ins->subdivisionsPerMeasure > 0 ? ins->subdivisionsPerMeasure : 1);
-  ins->phase = (ins->phase <= 1 && ins->phase >= 0 ? ins->phase : 0);
-  ins->pulseWidth =
-      (ins->pulseWidth < 1 && ins->pulseWidth > 0 ? ins->pulseWidth : 0.5);
-}
+typedef enum inputNames {
+  TEMPO,
+  BEATS,
+  SUBDIVISIONS,
+  PHASE,
+  METRIC_MODULATION
+} inputNames_t;
+
+typedef enum outputNames {
+  BEATS_OUT,
+  DOWNBEAT_OUT,
+  SUBDIVISIONS_OUT,
+  PHASE_OUT,
+} outputNames_t;
 
 class Module : public ModuleInterface {
 private:
@@ -42,23 +47,25 @@ private:
   messd_ins_t ins;
   messd_outs_t outs;
 
-  typedef enum inputNames {
-    TEMPO,
-    BEATS,
-    SUBDIVISIONS,
-    PHASE,
-    METRIC_MODULATION
-  } inputNames_t;
-
-  typedef enum outputNames {
-    BEATS_OUT,
-    DOWNBEAT_OUT,
-    SUBDIVISIONS_OUT,
-    PHASE_OUT,
-  } outputNames_t;
+  void _scaleValues() {
+    this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
+    this->ins.beatsPerMeasure =
+        (this->ins.beatsPerMeasure > 0 ? this->ins.beatsPerMeasure : 1);
+    this->ins.subdivisionsPerMeasure =
+        (this->ins.subdivisionsPerMeasure > 0 ? this->ins.subdivisionsPerMeasure
+                                              : 1);
+    this->ins.phase =
+        (this->ins.phase <= 1 && ins.phase >= 0 ? this->ins.phase : 0);
+    this->ins.pulseWidth = (this->ins.pulseWidth < 1 && this->ins.pulseWidth > 0
+                                ? this->ins.pulseWidth
+                                : 0.5);
+  }
 
 public:
   Module(uint8_t numInputs, uint8_t numOutputs) {
+    this->numInputs = numInputs;
+    this->numOutputs = numOutputs;
+
     this->inputBuffer = (double *)malloc(sizeof(double) * numInputs);
     this->outputBuffer = (double *)malloc(sizeof(double) * numOutputs);
   };
@@ -67,7 +74,8 @@ public:
 
   void process() {
     this->ins.delta = 1000.0 / 1000.0;
-    this->ins.tempo = this->inputBuffer[TEMPO];
+    /* this->ins.tempo = this->inputBuffer[TEMPO]; */
+    this->ins.tempo = 120;
     // this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
     // this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
     // this->ins.phase = this->inputBuffer[PHASE];
@@ -86,7 +94,7 @@ public:
     this->ins.wrap = 0;
     this->ins.pulseWidth = 0.5;
 
-    _scaleValues(&this->ins);
+    _scaleValues();
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
@@ -96,9 +104,9 @@ public:
     this->outputBuffer[PHASE_OUT] = this->outs.phase;
   };
 
-  pin_t *getInputPinSchematic() { return _inputPinSchematic; };
+  pin_t *getInputPinSchematic() { return inputPinSchematic; };
 
-  pin_t *getOutputPinSchematic() { return _outputPinSchematic; };
+  pin_t *getOutputPinSchematic() { return outputPinSchematic; };
 
   double *getInputBuffer() { return this->inputBuffer; };
 
