@@ -2,30 +2,31 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
-#define NUM_INPUTS 5
-#define NUM_OUTPUTS 4
+#define NUM_INPUTS NUM_MUX_INS
+#define NUM_OUTPUTS NUM_SHIFT_REGISTER_OUTS
 
 static pin_t inputPinSchematic[] = {
-    {A6, INPUT, ANALOG}, // Clock In
-    {A3, INPUT, ANALOG}, // Downbeat in
-    {A4, INPUT, ANALOG}, // Subdivision in
-    {A7, INPUT, ANALOG}, // Phase in
-    {7, INPUT, DIGITAL}  // Metric Modulation
+    {5, INPUT, DIGITAL}, // Mux 1 - A
+    {6, INPUT, DIGITAL}, // Mux 1 - B
+    {7, INPUT, DIGITAL}, // Mux 1 - C
+    {A0, INPUT, ANALOG}, // Mux 1 - Read Pin
 };
 
 static pin_t outputPinSchematic[] = {
-    {4, OUTPUT, DIGITAL},  // Clock out,
-    {12, OUTPUT, DIGITAL}, // Downbeat out
-    {10, OUTPUT, DIGITAL}, // Subdivision out,
-    {8, OUTPUT, DIGITAL}   // Phase out
+    {12, OUTPUT, DIGITAL}, // Clock Pin,
+    {11, OUTPUT, DIGITAL}, // Data Pin
+    {8, OUTPUT, DIGITAL},  // Latch Pin,
 };
 
-typedef enum inputNames {
-  TEMPO,
-  BEATS,
-  SUBDIVISIONS,
-  PHASE,
-  METRIC_MODULATION
+typedef enum muxInputNames1 {
+  TRUNCATE_POT,
+  DIVIDE_POT,
+  TRUNCATE_CV,
+  DIVIDE_CV,
+  DIVIDE_SWITCH,
+  BEAT_SWITCH,
+  ROUND_SWITCH,
+  LATCH_SWITCH
 } inputNames_t;
 
 typedef enum outputNames {
@@ -72,19 +73,19 @@ public:
 
   void init() { MS_init(&this->messd); };
 
-  void process() {
-    this->ins.delta = 1000.0 / 1000.0;
+  void process(float msDelta) {
+    this->ins.delta = msDelta / 1000.0;
     /* this->ins.tempo = this->inputBuffer[TEMPO]; */
-    this->ins.tempo = 120;
+    this->ins.tempo = 60;
     // this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
     // this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
     // this->ins.phase = this->inputBuffer[PHASE];
-    this->ins.beatsPerMeasure = 2;
-    this->ins.subdivisionsPerMeasure = 3;
+    this->ins.beatsPerMeasure = 4;
+    this->ins.subdivisionsPerMeasure = 7;
     this->ins.phase = 0;
 
     this->ins.ext_clock = 0;
-
+    this->ins.truncation = 0;
     this->ins.metricModulation = 0;
     this->ins.latchChangesToDownbeat = 0;
     this->ins.invert = 0;
@@ -92,7 +93,7 @@ public:
     this->ins.reset = 0;
 
     this->ins.wrap = 0;
-    this->ins.pulseWidth = 0.5;
+    this->ins.pulseWidth = 0.1;
 
     _scaleValues();
 
