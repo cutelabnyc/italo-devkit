@@ -7,9 +7,12 @@
  * the signals served by [buffer_t CV_in/CV_out].
  */
 
-#include <interfaces.hpp>
+// #include <interfaces.hpp>
+#include <../modules/messd-up/messd-up.cpp>
+/* #include "interfaces.hpp" */
 
 ModuleInterface *module = buildModule();
+unsigned long previousTime;
 
 /**
  * Initializes the ATMEGA328's pins, initializes
@@ -21,7 +24,7 @@ void setup() {
   GPIO_init(module->getOutputPinSchematic(), module->getNumOutputs());
 
   Serial.begin(9600);
-
+  previousTime = micros();
   module->init();
 }
 
@@ -30,10 +33,14 @@ void setup() {
  * processing the data, and writing the output values.
  **/
 void loop() {
+  int startMillis = micros();
+  int delta = startMillis - previousTime;
+  previousTime = startMillis;
+
   GPIO_read(module->getInputPinSchematic(), module->getInputBuffer(),
             module->getNumInputs());
 
-  module->process();
+  module->process(delta);
 
   GPIO_write(module->getOutputPinSchematic(), module->getOutputBuffer(),
              module->getNumOutputs());
