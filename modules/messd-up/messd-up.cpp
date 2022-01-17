@@ -2,8 +2,8 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
-#define NUM_INPUTS 4
-#define NUM_OUTPUTS 3
+#define NUM_INPUTS 2
+#define NUM_OUTPUTS 4
 
 static pin_t inputPinSchematic[] = {
     {5, INPUT, DIGITAL}, // Mux 1 - A
@@ -18,15 +18,20 @@ static pin_t outputPinSchematic[] = {
     {8, OUTPUT, DIGITAL},  // Latch Pin,
 };
 
-typedef enum muxInputNames1 {
-  TRUNCATE_POT,
-  DIVIDE_POT,
-  TRUNCATE_CV,
-  DIVIDE_CV,
-  DIVIDE_SWITCH,
-  BEAT_SWITCH,
-  ROUND_SWITCH,
-  LATCH_SWITCH
+// typedef enum muxInputNames1 {
+//   TRUNCATE_POT,
+//   DIVIDE_POT,
+//   TRUNCATE_CV,
+//   DIVIDE_CV,
+//   DIVIDE_SWITCH,
+//   BEAT_SWITCH,
+//   ROUND_SWITCH,
+//   LATCH_SWITCH
+// } inputNames_t;
+
+typedef enum inputNames {
+  BEATS,
+  SUBDIVISIONS
 } inputNames_t;
 
 typedef enum outputNames {
@@ -77,11 +82,11 @@ public:
     this->ins.delta = msDelta / 1000.0;
     /* this->ins.tempo = this->inputBuffer[TEMPO]; */
     this->ins.tempo = 120;
-    // this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
-    // this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
+    this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
+    this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
     // this->ins.phase = this->inputBuffer[PHASE];
-    this->ins.beatsPerMeasure = 4;
-    this->ins.subdivisionsPerMeasure = 7;
+    // this->ins.beatsPerMeasure = 4;
+    // this->ins.subdivisionsPerMeasure = 7;
     this->ins.phase = 0;
 
     this->ins.ext_clock = 0;

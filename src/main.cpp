@@ -28,6 +28,35 @@ int millisUpdateInterval = 2000;
 int currentDig = 0;
 int maxDig = 4;
 
+// consts
+int beatsDivMin = 2;
+int beatsDivMax = 32;
+
+// Mux controllers
+int m0 = 8;
+int m1 = 9;
+int m2 = 10;
+
+// Analog inputs
+int aIn0 = A1;
+int aIn1 = A2;
+int aVal0 = 0;
+int aVal1 = 0;
+
+// Storage for the encoders
+int divEncA = 0;
+int divEncB = 0;
+int encStateDiv = 0;
+int beatsEncA = 0;
+int beatsEncB = 0;
+int encStateBeats = 0;
+
+// State
+struct state {
+	int beats = 4;
+	int div = 7;
+} state;
+
 const int digitDisplay[10][8] {
 	// NUMBERS
 	{0,1,1,1,1,1,1,0}, //ZERO
@@ -63,9 +92,33 @@ void setup()
 	pinMode(latchPinB, OUTPUT);
 	pinMode(dataPinB, OUTPUT);
 
+	pinMode(m0, OUTPUT);
+	pinMode(m1, OUTPUT);
+	pinMode(m2, OUTPUT);
+
 	module->init();
 
 	lastMillis = micros();
+}
+
+int makeEncoderState(int pinA, int pinB) {
+	return (pinB << 1) | pinA;
+}
+
+int FeedState(int &oldState, int newState)
+{
+	int out = 0;
+
+	if (oldState != newState) {
+		int isFwd = ((newState == 0) && (oldState == 1)) ||
+			((newState == 1) && (oldState == 3)) ||
+			((newState == 3) && (oldState == 2)) ||
+			((newState == 2) && (oldState == 0));
+		out = isFwd ? 1 : -1;
+	}
+
+	oldState = newState;
+	return out;
 }
 
 /**
@@ -83,12 +136,60 @@ void loop()
     // GPIO_read(module->getInputPinSchematic(), module->getInputBuffer(),
     //           module->getNumInputs());
     
-    module->process(delta);
-    
     // GPIO_write(module->getOutputPinSchematic(), module->getOutputBuffer(),
     //            module->getNumOutputs());
 
 	// Hardcoded stuff outside of GPIO_write
+
+	// Read the encoder
+	for (int i = 0; i < 8; i++) {
+		digitalWrite(m0, i & 1);
+		digitalWrite(m1, (i >> 1) & 1);
+		digitalWrite(m2, (i >> 2) & 1);
+
+		aVal1 = analogRead(aIn1);
+
+		// Serial.print(i);
+		// Serial.print(": ");
+		// Serial.print(aVal0);
+		// Serial.print("\t");
+
+		if (i == 4) {
+			divEncA = aVal1 < 512;
+		} else if (i == 5) {
+			divEncB = aVal1 < 512;
+		} else if (i == 6) {
+			beatsEncA = aVal1 < 512;
+		} else if (i == 7) {
+			beatsEncB = aVal1 < 512;
+		}
+	}
+
+	int newState = makeEncoderState(beatsEncA, beatsEncB);
+	int inc = FeedState(encStateBeats, newState);
+	if (inc != 0) {
+		state.beats -= inc;
+		if (state.beats < beatsDivMin) state.beats = beatsDivMax;
+		if (state.beats > beatsDivMax) state.beats = beatsDivMin;
+	}
+	newState = makeEncoderState(divEncA, divEncB);
+	inc = FeedState(encStateDiv, newState);
+	if (inc != 0) {
+		state.div -= inc;
+		if (state.div < beatsDivMin) state.div = beatsDivMax;
+		if (state.div > beatsDivMax) state.div = beatsDivMin;
+	}
+
+	// Update module state
+	double *ins = module->getInputBuffer();
+	ins[BEATS] = state.beats;
+	ins[SUBDIVISIONS] = state.div;
+
+	// Process the module
+	module->process(delta);
+
+	// Write the display
+	char s[2];
 	int thisMillis = micros();
 	millisAccum += thisMillis - lastMillis;
 
@@ -116,7 +217,17 @@ void loop()
 		for (int i = 0; i < 8; i++) {
 			digitalWrite(clockPinA, LOW);
 			// digitalWrite(dataPinA, _numMatrix[0][i]);
-			digitalWrite(dataPinA, digitDisplay[currentDig][i]);
+
+			// Beat ones
+			if (currentDig == 3) {
+				digitalWrite(dataPinA, digitDisplay[state.beats % 10][i]);
+			} else if (currentDig == 2) {
+				digitalWrite(dataPinA, digitDisplay[state.beats / 10][i]);
+			} else if (currentDig == 1) {
+				digitalWrite(dataPinA, digitDisplay[state.div % 10][i]);
+			} else {
+				digitalWrite(dataPinA, digitDisplay[state.div / 10][i]);
+			}
 			digitalWrite(clockPinA, HIGH);
 		}
 
