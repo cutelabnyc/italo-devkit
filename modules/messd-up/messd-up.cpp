@@ -2,8 +2,8 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
-#define NUM_INPUTS NUM_MUX_INS
-#define NUM_OUTPUTS NUM_SHIFT_REGISTER_OUTS
+#define NUM_INPUTS 4
+#define NUM_OUTPUTS 3
 
 static pin_t inputPinSchematic[] = {
     {5, INPUT, DIGITAL}, // Mux 1 - A
@@ -76,7 +76,7 @@ public:
   void process(float msDelta) {
     this->ins.delta = msDelta / 1000.0;
     /* this->ins.tempo = this->inputBuffer[TEMPO]; */
-    this->ins.tempo = 60;
+    this->ins.tempo = 120;
     // this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
     // this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
     // this->ins.phase = this->inputBuffer[PHASE];
@@ -93,7 +93,7 @@ public:
     this->ins.reset = 0;
 
     this->ins.wrap = 0;
-    this->ins.pulseWidth = 0.1;
+    this->ins.pulseWidth = 0.5;
 
     _scaleValues();
 
