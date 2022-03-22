@@ -2,16 +2,25 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
-#define NUM_INPUTS 2
+#define NUM_INPUTS 3
 #define NUM_OUTPUTS 4
 
+// Old arduino values
+// static pin_t inputPinSchematic[] = {
+//     {5, INPUT, DIGITAL}, // Mux 1 - A
+//     {6, INPUT, DIGITAL}, // Mux 1 - B
+//     {7, INPUT, DIGITAL}, // Mux 1 - C
+//     {A0, INPUT, ANALOG}, // Mux 1 - Read Pin
+// };
+
 static pin_t inputPinSchematic[] = {
-    {5, INPUT, DIGITAL}, // Mux 1 - A
-    {6, INPUT, DIGITAL}, // Mux 1 - B
-    {7, INPUT, DIGITAL}, // Mux 1 - C
-    {A0, INPUT, ANALOG}, // Mux 1 - Read Pin
+    {PD4, INPUT, DIGITAL}, // Mux 1 - A
+    {PD3, INPUT, DIGITAL}, // Mux 1 - B
+    {PD2, INPUT, DIGITAL}, // Mux 1 - C
+    {PC0, INPUT, ANALOG}, // Mux 1 - Read Pin
 };
 
+// Old arduino values
 static pin_t outputPinSchematic[] = {
     {12, OUTPUT, DIGITAL}, // Clock Pin,
     {11, OUTPUT, DIGITAL}, // Data Pin
@@ -31,7 +40,8 @@ static pin_t outputPinSchematic[] = {
 
 typedef enum inputNames {
   BEATS,
-  SUBDIVISIONS
+  SUBDIVISIONS,
+  DEBUG_TEMPO
 } inputNames_t;
 
 typedef enum outputNames {
@@ -81,7 +91,7 @@ public:
   void process(float msDelta) {
     this->ins.delta = msDelta / 1000.0;
     /* this->ins.tempo = this->inputBuffer[TEMPO]; */
-    this->ins.tempo = 120;
+    this->ins.tempo = this->inputBuffer[DEBUG_TEMPO];
     this->ins.beatsPerMeasure = this->inputBuffer[BEATS];
     this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS];
     // this->ins.phase = this->inputBuffer[PHASE];
