@@ -24,14 +24,14 @@ unsigned long previousTime;
 // int clockPinB = 11;
 
 // Shift register pins (seven segment)
-int dataPinA = PB3;
-int latchPinA = PB1;
-int clockPinA = PB2;
+int dataPinA = 11; //PB3
+int latchPinA = 9; //PB1
+int clockPinA = 10; //PB2
 
 // The second shift register (outs + LEDs)
-int dataPinB = PD7;
-int latchPinB = PD6;
-int clockPinB = PD5;
+int dataPinB = 7; //PD7
+int latchPinB = 6; //PD6
+int clockPinB = 5; //PD5
 struct ShiftOutputsB {
 	int NOTHING = 0;
 	int TRUNCATE_LED = 1;
@@ -44,9 +44,9 @@ struct ShiftOutputsB {
 } ShiftOutputsB;
 
 // The third shift register (LEDs)
-int dataPinC = PB0;
-int latchPinC = PC4;
-int clockPinC = PC5;
+int dataPinC = 8; //PB0
+int latchPinC = A4; //PC4
+int clockPinC = A5; //PC5
 struct ShiftOutputsC {
 	int MOD_LED = 0;
 	int EoM_LED = 1;
@@ -69,11 +69,11 @@ int beatsDivMin = 2;
 int beatsDivMax = 32;
 
 // Mux controller pins
-int m0 = PD4;
-int m1 = PD3;
-int m2 = PD2;
-int analogMuxIn = PC0;
-int digitalMuxIn = PC2;
+int m0 = 4; //PD4
+int m1 = 3; //PD3
+int m2 = 2; //PD2
+int analogMuxIn = A0; //PC0
+int digitalMuxIn = A2; //PC2
 
 struct AnalogMux {
 	int DIVIDE_ATV = 0;
@@ -86,13 +86,13 @@ struct AnalogMux {
 	int TRUNCATE_INPUT = 7;
 } AnalogMux;
 struct DigitalMux {
-	int DIVIDE_ENC_B = 0;
-	int DIV_SWITCH = 1;
-	int BEAT_SWITCH = 2;
-	int DIVIDE_ENC_A = 3;
-	int BEAT_ENC_B = 4;
+	int BEAT_ENC_B = 0;
+	int BEAT_SWITCH = 1;
+	int DIV_SWITCH = 2;
+	int BEAT_ENC_A = 3;
+	int DIVIDE_ENC_B = 4;
 	int CLOCK_IN = 5;
-	int BEAT_ENC_A = 6;
+	int DIVIDE_ENC_A = 6;
 	int CLOCK_SWITCH = 7;
 } DigitalMux;
 
@@ -111,6 +111,12 @@ int encStateBeats = 0;
 // Storage for the pots
 int pot0 = 0;
 int pot1 = 0;
+
+// Storage for the latch switches
+int beat_latch = 0;
+int div_latch = 0;
+int beat_switch_state_prev = 0;
+int div_switch_state_prev = 0;
 
 // State
 struct state {
@@ -209,7 +215,7 @@ static bool ff = false;
 void loop()
 {
     int startMillis = micros();
-    int delta = startMillis - previousTime;
+    int delta = (startMillis - previousTime) / 1000;
     previousTime = startMillis;
 
 	// Serial.println(delta);
@@ -228,39 +234,68 @@ void loop()
 		digitalWrite(m1, bitRead(i, 1));
 		digitalWrite(m2, bitRead(i, 2));
 
-		digitalVal = digitalRead(digitalMuxIn);
 		analogVal = analogRead(analogMuxIn);
+		digitalVal = digitalRead(digitalMuxIn);
+
+		// Serial.print(i);
+		// Serial.print(": ");
+		// Serial.print(analogVal);
+		// Serial.print(i == 7 ? "\n" : "\t");
+
+		// continue;
 
 		if (i == AnalogMux.DIVIDE_ATV) {
 			pot0 = analogVal;
-			Serial.print("pot 1: ");
-			Serial.print(pot0);
-			Serial.print("\t");
+			// Serial.print("pot 1: ");
+			// Serial.print(pot0);
+			// Serial.print("\t");
 		} else if (i == AnalogMux.TRUNCATE_ATV) {
 			pot1 = analogVal;
-			Serial.print("pot 2: ");
-			Serial.print(pot1);
-			Serial.print("\t");
+			// Serial.print("pot 2: ");
+			// Serial.print(pot1);
+			// Serial.print("\t");
 		}
 
 		if (i == AnalogMux.LATCH_SWITCH) {
-			Serial.print("Latch switch: ");
-			Serial.print(analogVal);
-			Serial.print("\t");
+			// Serial.print("Latch switch: ");
+			// Serial.print(analogVal);
+			// Serial.print("\t");
 		} else if (i == AnalogMux.ROUND_SWITCH) {
-			Serial.print("Round switch: ");
-			Serial.println(analogVal);
-			Serial.print("\n");
+			// Serial.print("Round switch: ");
+			// Serial.println(analogVal);
+			// Serial.print("\n");
 		}
 
 		if (i == DigitalMux.DIVIDE_ENC_A) {
 			divEncA = digitalVal ? 1 : 0;
+			// Serial.print("divide-a: ");
+			// Serial.print(divEncA);
+			// Serial.print("\t");
 		} else if (i == DigitalMux.DIVIDE_ENC_B) {
 			divEncB = digitalVal ? 1 : 0;
+			// Serial.print("divide-b: ");
+			// Serial.print(divEncB);
+			// Serial.print("\t");
 		} else if (i == DigitalMux.BEAT_ENC_A) {
 			beatsEncA = digitalVal ? 1 : 0;
+			// Serial.print("beats-a: ");
+			// Serial.print(beatsEncA);
+			// Serial.print("\t");
 		} else if (i == DigitalMux.BEAT_ENC_B) {
 			beatsEncB = digitalVal ? 1 : 0;
+			// Serial.print("beats-b: ");
+			// Serial.print(beatsEncB);
+			// Serial.print("\n");
+		} else if (i == DigitalMux.BEAT_SWITCH) {
+			if (digitalVal && (beat_switch_state_prev == 0)) {
+				beat_latch = !beat_latch;
+			}
+			beat_switch_state_prev = digitalVal;
+		} else if (i == DigitalMux.DIV_SWITCH) {
+			if (digitalVal && (div_switch_state_prev == 0)) {
+				div_latch = !div_latch;
+			}
+			div_switch_state_prev = digitalVal;
 		}
 	}
 
@@ -327,6 +362,13 @@ void loop()
 		currentDig = (currentDig + 1) % 4;
 	}
 
+	// Serial.print("beats: ");
+	// Serial.print(state.beats);
+	// Serial.print("\t");
+	// Serial.print("div: ");
+	// Serial.print(state.div);
+	// Serial.print("\n");
+
 	// Write the output pins
 	double *ob = module->getOutputBuffer();
 	digitalWrite(latchPinB, LOW);
@@ -335,21 +377,25 @@ void loop()
 		digitalWrite(clockPinB, LOW);
 
 		if (revPin == ShiftOutputsB.TRUNCATE_LED) {
-			// digitalWrite(dataPinB, ob[PHASE_OUT] < 0.5 ? HIGH : LOW);
-			digitalWrite(dataPinB, (divEncA) ? HIGH : LOW);
+			digitalWrite(dataPinB, ob[PHASE_OUT] < 0.5 ? HIGH : LOW);
+			// digitalWrite(dataPinB, (divEncA) ? HIGH : LOW);
 		} else if (revPin == ShiftOutputsB.TRUNCATE_OUTPUT) {
-			digitalWrite(dataPinB, ob[PHASE_OUT] < 0.5 ? LOW : HIGH);
+			digitalWrite(dataPinB, HIGH);
+			// digitalWrite(dataPinB, ob[PHASE_OUT] < 0.5 ? LOW : HIGH);
 		} else if (revPin == ShiftOutputsB.DOWNBEAT_OUTPUT) {
-			digitalWrite(dataPinB, ob[DOWNBEAT_OUT] < 0.5 ? HIGH : LOW);
+			// digitalWrite(dataPinB, ob[DOWNBEAT_OUT] < 0.5 ? HIGH : LOW);
+			digitalWrite(dataPinB, HIGH);
 		} else if (revPin == ShiftOutputsB.BEAT_OUTPUT) {
-			digitalWrite(dataPinB, ob[BEATS_OUT] < 0.5 ? LOW : HIGH);
+			digitalWrite(dataPinB, HIGH);
+			// digitalWrite(dataPinB, ob[BEATS_OUT] < 0.5 ? LOW : HIGH);
 		} else if (revPin == ShiftOutputsB.EoM_OUTPUT) {
 			digitalWrite(dataPinB, HIGH); // TODO: Add EoM
 		} else if (revPin == ShiftOutputsB.DIVIDE_LED) {
 			digitalWrite(dataPinB, ob[SUBDIVISIONS_OUT] < 0.5 ? HIGH : LOW);
-			digitalWrite(dataPinB, (beatsEncA) ? HIGH : LOW);
+			// digitalWrite(dataPinB, (beatsEncA) ? HIGH : LOW);
 		} else if (revPin == ShiftOutputsB.DIVIDE_OUTPUT) {
-			digitalWrite(dataPinB, ob[SUBDIVISIONS_OUT] < 0.5 ? LOW : HIGH);
+			digitalWrite(dataPinB, HIGH);
+			// digitalWrite(dataPinB, ob[SUBDIVISIONS_OUT] < 0.5 ? LOW : HIGH);
 		} else if (revPin == ShiftOutputsB.NOTHING) {
 			// skip
 		}
@@ -364,27 +410,26 @@ void loop()
 		int revPin = 7 - i;
 		digitalWrite(clockPinC, LOW);
 
-		/**
 		if (revPin == ShiftOutputsC.MOD_LED) {
 			digitalWrite(dataPinC, HIGH); // TODO: Add modulation to outputs
 		} else if (revPin == ShiftOutputsC.EoM_LED) {
-			digitalWrite(dataPinC, HIGH); // TODO: Add EoM to outputs
+			digitalWrite(dataPinC, LOW); // TODO: Add EoM to outputs
 		} else if (revPin == ShiftOutputsC.CLOCK_LED) {
 			digitalWrite(dataPinC, HIGH); // TODO: Add Clock to outputs
 		} else if (revPin == ShiftOutputsC.DOWNBEAT_LED) {
 			digitalWrite(dataPinC, ob[DOWNBEAT_OUT] < 0.5 ? HIGH : LOW);
 		} else if (revPin == ShiftOutputsC.BEAT_LED) {
+			// Serial.println(ob[BEATS_OUT]);
 			digitalWrite(dataPinC, ob[BEATS_OUT] < 0.5 ? HIGH : LOW);
 		} else if (revPin == ShiftOutputsC.BEAT_LATCH_LED) {
-			digitalWrite(dataPinC, HIGH); // TODO: Add beat latch to outputs
+			digitalWrite(dataPinC, beat_latch ? HIGH : LOW); // TODO: Add beat latch to outputs
 		} else if (revPin == ShiftOutputsC.DIV_LATCH_LED) {
-			digitalWrite(dataPinC, HIGH); // TODO: Add div latch to outputs
+			digitalWrite(dataPinC, div_latch ? HIGH : LOW); // TODO: Add div latch to outputs
 		} else if (revPin == ShiftOutputsC.NOTHING) {
 			// skip
 		}
-		*/
 
-		digitalWrite(dataPinC, LOW);
+		// digitalWrite(dataPinC, LOW);
 
 		digitalWrite(clockPinC, HIGH);
 	}
