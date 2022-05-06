@@ -27,6 +27,8 @@ unsigned long previousTime;
 int dataPinA = 11; //PB3
 int latchPinA = 9; //PB1
 int clockPinA = 10; //PB2
+int latchPinA2 = 13; //PB5
+int clockPinA2 = 12; //PB4
 
 // The second shift register (outs + LEDs)
 int dataPinB = 7; //PD7
@@ -136,16 +138,16 @@ struct state {
 
 const int digitDisplay[10][8] {
 	// NUMBERS
-	{0,1,1,1,1,1,1,0}, //ZERO
-	{0,0,0,0,1,1,0,0}, //ONE
-	{1,0,1,1,0,1,1,0}, //TWO
-	{1,0,0,1,1,1,1,0}, //THREE
-	{1,1,0,0,1,1,0,0}, //FOUR
-	{1,1,0,1,1,0,1,0}, //FIVE
-	{1,1,1,1,1,0,1,0}, //SIX
-	{0,0,0,0,1,1,1,0}, //SEVEN
-	{1,1,1,1,1,1,1,0}, //EIGHT
-	{1,1,0,1,1,1,1,0}, //NINE
+	{0,0,1,1,1,1,1,1}, //ZERO
+	{0,0,0,0,0,1,1,0}, //ONE
+	{0,1,0,1,1,0,1,1}, //TWO
+	{0,1,0,0,1,1,1,1}, //THREE
+	{0,1,1,0,0,1,1,0}, //FOUR
+	{0,1,1,0,1,1,0,1}, //FIVE
+	{0,1,1,1,1,1,0,1}, //SIX
+	{0,0,0,0,0,1,1,1}, //SEVEN
+	{0,1,1,1,1,1,1,1}, //EIGHT
+	{0,1,1,0,1,1,1,1}, //NINE
 };
 
 /**
@@ -167,6 +169,8 @@ void setup()
 
 	pinMode(clockPinA, OUTPUT);
 	pinMode(latchPinA, OUTPUT);
+	pinMode(clockPinA2, OUTPUT);
+	pinMode(latchPinA2, OUTPUT);
 	pinMode(dataPinA, OUTPUT);
 
 	pinMode(clockPinB, OUTPUT);
@@ -208,6 +212,7 @@ int FeedState(int &oldState, int newState)
 
 static bool ff = false;
 
+
 /**
  * The three step process consists of reading GPIO values,
  * processing the data, and writing the output values.
@@ -217,6 +222,65 @@ void loop()
     int startMillis = micros();
     int delta = (startMillis - previousTime) / 1000;
     previousTime = startMillis;
+
+	// Write the display
+	int thisMillis = micros();
+	millisAccum += thisMillis - lastMillis;
+
+	if (!ff) {
+		millisAccum = millisAccum % millisUpdateInterval;
+
+		Serial.println("here");
+		currentDi
+
+		digitalWrite(latchPinA, LOW);
+		digitalWrite(latchPinA2, LOW);
+
+		// Enable the digit of interest
+		for (int i = 5; i >= 0; i--) {
+			digitalWrite(clockPinA, LOW);
+			digitalWrite(clockPinA2, LOW);
+			digitalWrite(dataPinA, i == currentDig ? HIGH : LOW);
+			// digitalWrite(dataPinA, HIGH);
+			digitalWrite(clockPinA, HIGH);
+			digitalWrite(clockPinA2, HIGH);
+		}
+
+		// Write the digit
+		for (int i = 0; i < 8; i++) {
+			digitalWrite(clockPinA, LOW);
+			digitalWrite(clockPinA2, LOW);
+			// digitalWrite(dataPinA, _numMatrix[0][i]);
+
+			// Beat ones
+			// digitalWrite(dataPinA, LOW);
+			if (currentDig == 3) {
+				digitalWrite(dataPinA, digitDisplay[6][i]);
+				// digitalWrite(dataPinA, digitDisplay[state.beats % 10][i]);
+			} else if (currentDig == 2) {
+				digitalWrite(dataPinA, digitDisplay[6][i]);
+				// digitalWrite(dataPinA, digitDisplay[state.beats / 10][i]);
+			} else if (currentDig == 1) {
+				digitalWrite(dataPinA, digitDisplay[6][i]);
+				// digitalWrite(dataPinA, digitDisplay[state.div % 10][i]);
+			} else {
+				digitalWrite(dataPinA, digitDisplay[6][i]);
+				// digitalWrite(dataPinA, digitDisplay[state.div / 10][i]);
+			}
+			digitalWrite(clockPinA, HIGH);
+			digitalWrite(clockPinA2, HIGH);
+		}
+
+		digitalWrite(latchPinA, HIGH);
+		digitalWrite(latchPinA2, HIGH);
+
+		currentDig = (currentDig + 1) % 4;
+		// currentDig = 0;
+
+		ff = true;
+	}
+
+	return;
 
 	// Serial.println(delta);
     
@@ -321,46 +385,7 @@ void loop()
 	ins[DEBUG_TEMPO] = (pot0 / 1024.0) * 220 + 20;
 
 	// Process the module
-	module->process(delta);
-
-	// Write the display
-	char s[2];
-	int thisMillis = micros();
-	millisAccum += thisMillis - lastMillis;
-
-	if (millisAccum > millisUpdateInterval) {
-		millisAccum = millisAccum % millisUpdateInterval;
-
-		// Enable the digit of interest
-		digitalWrite(latchPinA, LOW);
-		for (int i = 0; i < 8; i++) {
-			digitalWrite(clockPinA, LOW);
-			digitalWrite(dataPinA, i == currentDig ? HIGH : LOW);
-			digitalWrite(clockPinA, HIGH);
-		}
-
-		// Write the digit
-		for (int i = 0; i < 8; i++) {
-			digitalWrite(clockPinA, LOW);
-			// digitalWrite(dataPinA, _numMatrix[0][i]);
-
-			// Beat ones
-			if (currentDig == 3) {
-				digitalWrite(dataPinA, digitDisplay[state.beats % 10][i]);
-			} else if (currentDig == 2) {
-				digitalWrite(dataPinA, digitDisplay[state.beats / 10][i]);
-			} else if (currentDig == 1) {
-				digitalWrite(dataPinA, digitDisplay[state.div % 10][i]);
-			} else {
-				digitalWrite(dataPinA, digitDisplay[state.div / 10][i]);
-			}
-			digitalWrite(clockPinA, HIGH);
-		}
-
-		digitalWrite(latchPinA, HIGH);
-
-		currentDig = (currentDig + 1) % 4;
-	}
+	// module->process(delta);
 
 	// Serial.print("beats: ");
 	// Serial.print(state.beats);
@@ -411,7 +436,7 @@ void loop()
 		digitalWrite(clockPinC, LOW);
 
 		if (revPin == ShiftOutputsC.MOD_LED) {
-			digitalWrite(dataPinC, HIGH); // TODO: Add modulation to outputs
+			digitalWrite(dataPinC, LOW); // TODO: Add modulation to outputs
 		} else if (revPin == ShiftOutputsC.EoM_LED) {
 			digitalWrite(dataPinC, LOW); // TODO: Add EoM to outputs
 		} else if (revPin == ShiftOutputsC.CLOCK_LED) {
