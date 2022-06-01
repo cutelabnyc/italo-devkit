@@ -1,37 +1,73 @@
 #include <Arduino.h>
 
+// consts
+int beatsDivMin = 2;
+int beatsDivMax = 32;
+
 // Shift register pins (seven segment)
 int dataPinA = 11; //PB3
 int latchPinA = 9; //PB1
 int clockPinA = 10; //PB2
 
-// const int digitDisplay[10][8] {
-// 	// NUMBERS
-// 	{1,0,1,1,1,1,1,0}, //ZERO
-// 	{0,0,0,0,0,1,1,0}, //ONE
-// 	{1,1,0,1,1,0,1,0}, //TWO
-// 	{1,1,0,0,1,1,1,0}, //THREE
-// 	{0,1,1,0,0,1,1,0}, //FOUR
-// 	{1,1,1,0,1,1,0,0}, //FIVE
-// 	{1,1,1,1,1,1,0,0}, //SIX
-// 	{1,0,0,0,0,1,1,0}, //SEVEN
-// 	{1,1,1,1,1,1,1,1}, //EIGHT
-// 	{1,1,1,0,1,1,1,0}, //NINE
-// };
+// Mux controller pins
+int m0 = 4; //PD4
+int m1 = 3; //PD3
+int m2 = 2; //PD2
+int analogMuxIn = A0; //PC0
+int digitalMuxIn = A2; //PC2
 
-// const int digitDisplay[10][8] {
-// 	// NUMBERS
-// 	{1,0,0,0,0,0,0,0}, //ZERO
-// 	{0,1,0,0,0,0,0,0}, //ONE
-// 	{0,0,1,0,0,0,0,0}, //TWO
-// 	{0,0,0,1,0,0,0,0}, //THREE
-// 	{0,0,0,0,1,0,0,0}, //FOUR
-// 	{0,0,0,0,0,1,0,0}, //FIVE
-// 	{0,0,0,0,0,0,1,0}, //SIX
-// 	{0,0,0,0,0,0,0,1}, //SEVEN
-// 	{0,0,0,0,0,0,0,0}, //EIGHT
-// 	{0,0,0,0,0,0,0,0}, //NINE
-// };
+// Storage for the encoders
+int divEncA = 0;
+int divEncB = 0;
+int encStateDiv = 0;
+int beatsEncA = 0;
+int beatsEncB = 0;
+int encStateBeats = 0;
+
+typedef struct EncoderState {
+	int lastPin1;
+	int lastPin2;
+	int direction;
+} EncoderState;
+
+EncoderState divEncoderState = {HIGH, HIGH, 0};
+EncoderState beatsEncoderState = {HIGH, HIGH, 0};
+
+// Storage for the pots
+int pot0 = 0;
+int pot1 = 0;
+
+// Storage for the latch switches
+int beat_latch = 0;
+int div_latch = 0;
+int beat_switch_state_prev = 0;
+int div_switch_state_prev = 0;
+
+// State
+struct state {
+	int beats = 4;
+	int div = 7;
+} state;
+struct AnalogMux {
+	int DIVIDE_ATV = 0;
+	int TRUNCATE_ATV = 1;
+	int LATCH_SWITCH = 2;
+	int BEAT_INPUT = 3;
+	int ROUND_SWITCH = 4;
+	int DIVIDE_INPUT = 5;
+	int MOD_INPUT = 6;
+	int TRUNCATE_INPUT = 7;
+} AnalogMux;
+struct DigitalMux {
+	int BEAT_ENC_A = 0;
+	int BEAT_ENC_B = 1;
+	int DIV_SWITCH = 2;
+	int BEAT_SWITCH = 3;
+	int DIVIDE_ENC_B = 4;
+	int CLOCK_IN = 5;
+	int DIVIDE_ENC_A = 6;
+	int CLOCK_SWITCH = 7;
+} DigitalMux;
 
 const int digitDisplay[10][8] {
 	// NUMBERS
@@ -47,48 +83,168 @@ const int digitDisplay[10][8] {
 	{0,0,1,1,1,1,1,0}, //NINE
 };
 
+// Which digit is currently being written
+int currentDigit = 0;
+
 void setup()
 {   
     Serial.begin(9600);
 
 	Serial.println("setup");
 
+	// Analog read pin for the digital mux
+	pinMode(digitalMuxIn, INPUT);
+
 	// Setting all of the shift register pins to be outputs
 	pinMode(clockPinA, OUTPUT);
 	pinMode(latchPinA, OUTPUT);
 	pinMode(dataPinA, OUTPUT);
+
+	// Mux selector pins are outputs
+	pinMode(m0, OUTPUT);
+	pinMode(m1, OUTPUT);
+	pinMode(m2, OUTPUT);
 }
 
-int hasWrittenDisplay = 0;
-int currentDigit = 0;
-
-/**
- * The three step process consists of reading GPIO values,
- * processing the data, and writing the output values.
- **/
-void loop()
+// Look for lagging edges
+int updateEncoderState(EncoderState *oldState, int pin1, int pin2)
 {
+	int retval = 0;
+	if (pin1 == LOW && oldState->lastPin1 == HIGH) {
+		if (oldState->direction == 0) {
+			oldState->direction = -1;
+		} else if (oldState->direction == 1) {
+			oldState->direction = 0;
+			retval = 1;
+		}
+	} else if (pin2 == LOW && oldState->lastPin2 == HIGH) {
+		if (oldState->direction == 0) {
+			oldState->direction = 1;
+		} else if (oldState->direction == -1) {
+			oldState->direction = 0;
+			retval = -1;
+		}
+	}
 
+	oldState->lastPin1 = pin1;
+	oldState->lastPin2 = pin2;
+	return retval;
+}
 
+int makeEncoderState(int pinA, int pinB) {
+	return (pinB << 1) | pinA;
+}
+
+int feedForwardState(int &oldState, int newState)
+{
+	int out = 0;
+
+	if (oldState != newState) {
+		int isFwd = ((newState == 0) && (oldState == 1)) ||
+			((newState == 1) && (oldState == 3)) ||
+			((newState == 3) && (oldState == 2)) ||
+			((newState == 2) && (oldState == 0));
+		out = isFwd ? 1 : -1;
+	}
+
+	oldState = newState;
+	return out;
+}
+
+void readMultiplexers() {
+	int analogVal = 0;
+	int digitalVal = 0;
+
+	// Read the mux inputs
+	for (int i = 0; i < 8; i++) {
+		digitalWrite(m0, bitRead(i, 0));
+		digitalWrite(m1, bitRead(i, 1));
+		digitalWrite(m2, bitRead(i, 2));
+
+		analogVal = analogRead(analogMuxIn);
+		digitalVal = digitalRead(digitalMuxIn);
+
+		// Serial.print(i);
+		// Serial.print(": ");
+		// Serial.print(analogVal);
+		// Serial.print(i == 7 ? "\n" : "\t");
+
+		// continue;
+
+		if (i == AnalogMux.DIVIDE_ATV) {
+			pot0 = analogVal;
+			// Serial.print("pot 1: ");
+			// Serial.print(pot0);
+			// Serial.print("\t");
+		} else if (i == AnalogMux.TRUNCATE_ATV) {
+			pot1 = analogVal;
+			// Serial.print("pot 2: ");
+			// Serial.print(pot1);
+			// Serial.print("\t");
+		}
+
+		if (i == AnalogMux.LATCH_SWITCH) {
+			// Serial.print("Latch switch: ");
+			// Serial.print(analogVal);
+			// Serial.print("\t");
+		} else if (i == AnalogMux.ROUND_SWITCH) {
+			// Serial.print("Round switch: ");
+			// Serial.println(analogVal);
+			// Serial.print("\n");
+		}
+
+		if (i == DigitalMux.DIVIDE_ENC_A) {
+			divEncA = digitalVal;
+			// Serial.print("divide-a: ");
+			// Serial.print(digitalVal);
+			// Serial.print("\t");
+		} else if (i == DigitalMux.DIVIDE_ENC_B) {
+			divEncB = digitalVal;
+			// Serial.print("divide-b: ");
+			// Serial.print(digitalVal);
+			// Serial.print("\t");
+		} else if (i == DigitalMux.BEAT_ENC_A) {
+			beatsEncA = digitalVal;
+			// Serial.print("beats-a: ");
+			// Serial.print(digitalVal);
+			// Serial.print("\t");
+		} else if (i == DigitalMux.BEAT_ENC_B) {
+			beatsEncB = digitalVal;
+			// Serial.print("beats-b: ");
+			// Serial.print(digitalVal);
+			// Serial.print("\n");
+		} else if (i == DigitalMux.BEAT_SWITCH) {
+			if (digitalVal && (beat_switch_state_prev == 0)) {
+				beat_latch = !beat_latch;
+			}
+			beat_switch_state_prev = digitalVal;
+		} else if (i == DigitalMux.DIV_SWITCH) {
+			if (digitalVal && (div_switch_state_prev == 0)) {
+				div_latch = !div_latch;
+			}
+			div_switch_state_prev = digitalVal;
+		}
+	}
+}
+
+int digitToDisplay(int digitIndex) {
+	if (digitIndex < 2) {
+		if (digitIndex == 0) return (state.div / 10);
+		return (state.div % 10);
+	} else {
+		if (digitIndex == 2) return (state.beats / 10);
+		return (state.beats % 10);
+	}
+}
+
+void drawDisplay() {
 	// Write the display
-	// if (!hasWrittenDisplay) {
-		// They all share a port so this should be fine
-		uint8_t port = digitalPinToPort(latchPinA);
-		volatile uint8_t *out;
-
+	if (true) {
 		// Serial.println("Writing the display");
 
 		// Start by writing both latch pins low. Shift registers don't update
 		// until the latch pin goes high
 		digitalWrite(latchPinA, LOW);
-		// digitalWrite(latchPinA2, LOW);
-
-		// This should write both latch pins low at the same time
-		// uint8_t latchBitA = digitalPinToBitMask(latchPinA);
-		// uint8_t latchBitB = digitalPinToBitMask(latchPinA2);
-		// uint8_t mask = ~latchBitA & ~latchBitB;
-		// out = portOutputRegister(port);
-		// *out &= mask;
 
 		// Enable the digit of interest
 		for (int i = 7; i >= 0; i--) {
@@ -107,86 +263,41 @@ void loop()
 			digitalWrite(clockPinA, LOW);
 			// digitalWrite(clockPinA2, LOW);
 			
-			digitalWrite(dataPinA, digitDisplay[(currentDigit + 1) % 10][i]);
+			int displayDigit = digitToDisplay(currentDigit);
+			digitalWrite(dataPinA, digitDisplay[displayDigit][i]);
 
 			digitalWrite(clockPinA, HIGH);
 			// digitalWrite(clockPinA2, HIGH);
 		}
-
-		// Turn everything on but for real
-		// for (int i = 0; i < 24; i++) {
-		// 	digitalWrite(clockPinA, LOW);
-		// 	digitalWrite(clockPinA2, LOW);
-
-		// 	// digitalWrite(dataPinA, i == currentDigit ? HIGH : LOW);
-		// 	digitalWrite(dataPinA, HIGH);
-			
-		// 	digitalWrite(clockPinA, HIGH);
-		// 	digitalWrite(clockPinA2, HIGH);
-		// }
-
-		// Write exactly our chosen 16 bits
-
-		// All on
-		// const int fixedBits[16] = {
-		// 	1, 1, 1, 1,
-		// 	1, 1, 1, 1,
-		// 	1, 1, 1, 1,
-		// 	1, 1, 1, 1
-		// };
-
-		// //	All off
-		// const int fixedBits[16] = {
-		// 	0, 0, 0, 0,
-		// 	0, 0, 0, 0,
-		// 	0, 0, 0, 0,
-		// 	0, 0, 0, 0
-		// };
-
-		// Write exactly our chosen 16 bits
-		// const int fixedBits[16] = {
-		// 	0, 0, 0, 0,
-		// 	0, 0, 0, 1,
-		// 	0, 0, 0, 0,
-		// 	0, 0, 1, 0,
-		// };
-
-		// for (int i = 0; i < 16; i++) {
-		// 	digitalWrite(clockPinA, LOW);
-		// 	// digitalWrite(clockPinA2, LOW);
-		// 	// Write both clock pins low at the same time
-		// 	// uint8_t clockBitA = digitalPinToBitMask(clockPinA);
-		// 	// uint8_t clockBitB = digitalPinToBitMask(clockPinA2);
-		// 	// mask = ~clockBitA & ~clockBitB;
-		// 	// out = portOutputRegister(port);
-		// 	// *out &= mask;
-
-		// 	// digitalWrite(dataPinA, i == currentDigit ? HIGH : LOW);
-		// 	digitalWrite(dataPinA, fixedBits[i] ? HIGH : LOW);
-
-		// 	digitalWrite(clockPinA, HIGH);
-		// 	// digitalWrite(clockPinA2, HIGH);
-		// 	// Write both clock pins high at the same time
-		// 	// clockBitA = digitalPinToBitMask(clockPinA);
-		// 	// clockBitB = digitalPinToBitMask(clockPinA2);
-		// 	// mask = clockBitA | clockBitB;
-		// 	// out = portOutputRegister(port);
-		// 	// *out |= mask;
-		// }
-
 		digitalWrite(latchPinA, HIGH);
-		// digitalWrite(latchPinA2, HIGH);
-
-		// Write both latch pins high at the same time
-		// latchBitA = digitalPinToBitMask(latchPinA);
-		// latchBitB = digitalPinToBitMask(latchPinA2);
-		// mask = latchBitA | latchBitB;
-		// out = portOutputRegister(port);
-		// *out |= mask;
 
 		currentDigit = (currentDigit + 1) % 4;
-		// Serial.println(currentDigit);
+	}
+}
 
-	// 	hasWrittenDisplay = true;
-	// }
+void processEncoders() {
+	int newState = makeEncoderState(beatsEncA, beatsEncB);
+	int inc = updateEncoderState(&beatsEncoderState, beatsEncA, beatsEncB);
+	if (inc != 0) {
+		state.beats += inc;
+		if (state.beats < beatsDivMin) state.beats = beatsDivMax;
+		if (state.beats > beatsDivMax) state.beats = beatsDivMin;
+	}
+	inc = updateEncoderState(&divEncoderState, divEncA, divEncB);
+	if (inc != 0) {
+		state.div += inc;
+		if (state.div < beatsDivMin) state.div = beatsDivMax;
+		if (state.div > beatsDivMax) state.div = beatsDivMin;
+	}
+}
+
+/**
+ * The three step process consists of reading GPIO values,
+ * processing the data, and writing the output values.
+ **/
+void loop()
+{
+	readMultiplexers();
+	processEncoders();
+	drawDisplay();
 }
