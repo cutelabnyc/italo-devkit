@@ -1,4 +1,5 @@
 #include "encoder.hpp"
+#include "mux.hpp"
 #include "seven-segment.hpp"
 
 #include <Arduino.h>
@@ -32,6 +33,12 @@ encoder_t div_encoder = {HIGH, HIGH, 0};
 encoder_t beat_encoder = {HIGH, HIGH, 0};
 
 shift_register_t shift_register = {dataPinA, latchPinA, clockPinA};
+
+int analogMuxOuts[8];
+int digitalMuxOuts[8];
+
+mux_t analog_mux = {{m0, m1, m2}, analogMuxIn, true, analogMuxOuts, 8};
+mux_t digital_mux = {{m0, m1, m2}, digitalMuxIn, false, digitalMuxOuts, 8};
 
 // Storage for the pots
 int pot0 = 0;
@@ -91,84 +98,10 @@ void setup() {
   pinMode(m2, OUTPUT);
 }
 
-void readMultiplexers() {
-  int analogVal = 0;
-  int digitalVal = 0;
-
-  // Read the mux inputs
-  for (int i = 0; i < 8; i++) {
-    digitalWrite(m0, bitRead(i, 0));
-    digitalWrite(m1, bitRead(i, 1));
-    digitalWrite(m2, bitRead(i, 2));
-
-    analogVal = analogRead(analogMuxIn);
-    digitalVal = digitalRead(digitalMuxIn);
-
-    // Serial.print(i);
-    // Serial.print(": ");
-    // Serial.print(analogVal);
-    // Serial.print(i == 7 ? "\n" : "\t");
-
-    // continue;
-
-    if (i == AnalogMux.DIVIDE_ATV) {
-      pot0 = analogVal;
-      // Serial.print("pot 1: ");
-      // Serial.print(pot0);
-      // Serial.print("\t");
-    } else if (i == AnalogMux.TRUNCATE_ATV) {
-      pot1 = analogVal;
-      // Serial.print("pot 2: ");
-      // Serial.print(pot1);
-      // Serial.print("\t");
-    }
-
-    if (i == AnalogMux.LATCH_SWITCH) {
-      // Serial.print("Latch switch: ");
-      // Serial.print(analogVal);
-      // Serial.print("\t");
-    } else if (i == AnalogMux.ROUND_SWITCH) {
-      // Serial.print("Round switch: ");
-      // Serial.println(analogVal);
-      // Serial.print("\n");
-    }
-
-    if (i == DigitalMux.DIVIDE_ENC_A) {
-      divEncA = digitalVal;
-      // Serial.print("divide-a: ");
-      // Serial.print(digitalVal);
-      // Serial.print("\t");
-    } else if (i == DigitalMux.DIVIDE_ENC_B) {
-      divEncB = digitalVal;
-      // Serial.print("divide-b: ");
-      // Serial.print(digitalVal);
-      // Serial.print("\t");
-    } else if (i == DigitalMux.BEAT_ENC_A) {
-      beatsEncA = digitalVal;
-      // Serial.print("beats-a: ");
-      // Serial.print(digitalVal);
-      // Serial.print("\t");
-    } else if (i == DigitalMux.BEAT_ENC_B) {
-      beatsEncB = digitalVal;
-      // Serial.print("beats-b: ");
-      // Serial.print(digitalVal);
-      // Serial.print("\n");
-    } else if (i == DigitalMux.BEAT_SWITCH) {
-      if (digitalVal && (beat_switch_state_prev == 0)) {
-        beat_latch = !beat_latch;
-      }
-      beat_switch_state_prev = digitalVal;
-    } else if (i == DigitalMux.DIV_SWITCH) {
-      if (digitalVal && (div_switch_state_prev == 0)) {
-        div_latch = !div_latch;
-      }
-      div_switch_state_prev = digitalVal;
-    }
-  }
-}
-
 void processEncoders() {
-  int inc = encoder_process(&beat_encoder, beatsEncA, beatsEncB);
+  int inc =
+      encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
+                      digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
   if (inc != 0) {
     state.beats += inc;
     if (state.beats < beatsDivMin)
@@ -176,7 +109,9 @@ void processEncoders() {
     if (state.beats > beatsDivMax)
       state.beats = beatsDivMin;
   }
-  inc = encoder_process(&div_encoder, divEncA, divEncB);
+  inc = encoder_process(&div_encoder,
+                        digital_mux.outputs[DigitalMux.DIVIDE_ENC_A],
+                        digital_mux.outputs[DigitalMux.DIVIDE_ENC_B]);
   if (inc != 0) {
     state.div += inc;
     if (state.div < beatsDivMin)
@@ -191,8 +126,9 @@ void processEncoders() {
  * processing the data, and writing the output values.
  **/
 void loop() {
-  readMultiplexers();
   processEncoders();
+  mux_process(&digital_mux);
+  mux_process(&analog_mux);
 
   if (digitCounter == 4) {
     digitCounter = 0;
