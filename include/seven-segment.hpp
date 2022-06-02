@@ -15,8 +15,8 @@ const int digitDisplay[10][8]{
     {0, 0, 1, 1, 1, 1, 1, 0}, // NINE
 };
 
-static void seven_segment_write(shift_register_t *shift_register,
-                                uint8_t indexToWrite, uint8_t valueToWrite) {
+static void seven_segment_process(shift_register_t *shift_register,
+                                  uint8_t indexToWrite, uint8_t valueToWrite) {
 
   uint8_t bitsToWrite[16];
 
@@ -25,5 +25,5 @@ static void seven_segment_write(shift_register_t *shift_register,
     bitsToWrite[15 - i] = digitDisplay[valueToWrite][i];
   }
 
-  write_shift_register(shift_register, bitsToWrite, 16);
+  shift_register_process(shift_register, bitsToWrite, 16);
 }

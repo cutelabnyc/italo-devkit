@@ -1,4 +1,6 @@
+#include "encoder.hpp"
 #include "seven-segment.hpp"
+
 #include <Arduino.h>
 // consts
 int beatsDivMin = 2;
@@ -26,14 +28,8 @@ int beatsEncA = 0;
 int beatsEncB = 0;
 int encStateBeats = 0;
 
-typedef struct EncoderState {
-  int lastPin1;
-  int lastPin2;
-  int direction;
-} EncoderState;
-
-EncoderState divEncoderState = {HIGH, HIGH, 0};
-EncoderState beatsEncoderState = {HIGH, HIGH, 0};
+encoder_t div_encoder = {HIGH, HIGH, 0};
+encoder_t beat_encoder = {HIGH, HIGH, 0};
 
 shift_register_t shift_register = {dataPinA, latchPinA, clockPinA};
 
@@ -93,47 +89,6 @@ void setup() {
   pinMode(m0, OUTPUT);
   pinMode(m1, OUTPUT);
   pinMode(m2, OUTPUT);
-}
-
-// Look for lagging edges
-int updateEncoderState(EncoderState *oldState, int pin1, int pin2) {
-  int retval = 0;
-  if (pin1 == LOW && oldState->lastPin1 == HIGH) {
-    if (oldState->direction == 0) {
-      oldState->direction = -1;
-    } else if (oldState->direction == 1) {
-      oldState->direction = 0;
-      retval = 1;
-    }
-  } else if (pin2 == LOW && oldState->lastPin2 == HIGH) {
-    if (oldState->direction == 0) {
-      oldState->direction = 1;
-    } else if (oldState->direction == -1) {
-      oldState->direction = 0;
-      retval = -1;
-    }
-  }
-
-  oldState->lastPin1 = pin1;
-  oldState->lastPin2 = pin2;
-  return retval;
-}
-
-int makeEncoderState(int pinA, int pinB) { return (pinB << 1) | pinA; }
-
-int feedForwardState(int &oldState, int newState) {
-  int out = 0;
-
-  if (oldState != newState) {
-    int isFwd = ((newState == 0) && (oldState == 1)) ||
-                ((newState == 1) && (oldState == 3)) ||
-                ((newState == 3) && (oldState == 2)) ||
-                ((newState == 2) && (oldState == 0));
-    out = isFwd ? 1 : -1;
-  }
-
-  oldState = newState;
-  return out;
 }
 
 void readMultiplexers() {
@@ -212,21 +167,8 @@ void readMultiplexers() {
   }
 }
 
-int digitToDisplay(int digitIndex) {
-  if (digitIndex < 2) {
-    if (digitIndex == 0)
-      return (state.div / 10);
-    return (state.div % 10);
-  } else {
-    if (digitIndex == 2)
-      return (state.beats / 10);
-    return (state.beats % 10);
-  }
-}
-
 void processEncoders() {
-  int newState = makeEncoderState(beatsEncA, beatsEncB);
-  int inc = updateEncoderState(&beatsEncoderState, beatsEncA, beatsEncB);
+  int inc = encoder_process(&beat_encoder, beatsEncA, beatsEncB);
   if (inc != 0) {
     state.beats += inc;
     if (state.beats < beatsDivMin)
@@ -234,7 +176,7 @@ void processEncoders() {
     if (state.beats > beatsDivMax)
       state.beats = beatsDivMin;
   }
-  inc = updateEncoderState(&divEncoderState, divEncA, divEncB);
+  inc = encoder_process(&div_encoder, divEncA, divEncB);
   if (inc != 0) {
     state.div += inc;
     if (state.div < beatsDivMin)
@@ -271,6 +213,6 @@ void loop() {
     value = state.beats % 10;
     break;
   }
-  seven_segment_write(&shift_register, digitCounter, value);
+  seven_segment_process(&shift_register, digitCounter, value);
   digitCounter++;
 }

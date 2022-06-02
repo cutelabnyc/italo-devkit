@@ -6,8 +6,8 @@ typedef struct shift_register {
   int clock;
 } shift_register_t;
 
-static void write_shift_register(shift_register_t *self, uint8_t *bitsToWrite,
-                                 uint8_t numBitsToWrite) {
+static void shift_register_process(shift_register_t *self, uint8_t *bitsToWrite,
+                                   uint8_t numBitsToWrite) {
   digitalWrite(self->latch, LOW);
 
   for (int i = 0; i < numBitsToWrite; i++) {
