@@ -33,8 +33,12 @@ private:
     int m2 = 2; // PD2
 
     // consts
-    int beatsDivMin = 2;
-    int beatsDivMax = 32;
+    static const int beatsDivMin = 2;
+    static const int beatsDivMax = 32;
+	static const int tempoMin = 10;
+	static const int tempoMax = 500;
+	static const int tapTempoMin = 40;
+	static const int tapTempoMax = 280;
 
     int analogMuxIn = A0;  // PC0
     int digitalMuxIn = A2; // PC2
@@ -55,7 +59,8 @@ private:
 	float tapTempoOut = 120.0;
 	unsigned long lastTapMicros = 0;
 	unsigned char totalTaps = 0;
-	bool displayTempo = true;
+	bool displayTempo = false;
+	int tempoDisplayTime = 0;
 
     uint16_t analogMuxOuts[8];
     uint16_t digitalMuxOuts[8];
@@ -101,7 +106,7 @@ private:
 
     void _scaleValues();
     void _processEncoders();
-	void _processTapTempo();
+	void _processTapTempo(float msDelta);
 
 public:
     Module();
@@ -141,5 +146,5 @@ public:
     encoder_t beat_encoder = {HIGH, HIGH, 0};
 
     void init();
-    void process(float msDelta);
+    void process(float microsDelta);
 };

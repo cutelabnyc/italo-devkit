@@ -26,11 +26,11 @@ void loop() {
 	unsigned long nexttime = micros();
 	float delta;
 	if (nexttime < time) {
-		delta = lastdelta;
+		delta = (4294967295 - time) + nexttime;
 	} else {
 		delta = (float) (nexttime - time);
 	}
-	module.process(delta);
+	module.process(delta / 1000.0);
 	lastdelta = delta;
 	time = nexttime;
 }
