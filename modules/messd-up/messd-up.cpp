@@ -27,6 +27,7 @@ void Module::_processEncoders() {
             if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
         } else {
+			this->displayTempo = false;
             state.beats += inc;
             if (state.beats < beatsDivMin)
                 state.beats = beatsDivMax;
@@ -45,6 +46,7 @@ void Module::_processEncoders() {
             if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
         } else {
+			this->displayTempo = false;
             state.div += inc;
             if (state.div < beatsDivMin)
                 state.div = beatsDivMax;
@@ -170,7 +172,7 @@ void Module::process(float msDelta) {
     digitCounter++;
 
     this->ins.delta = msDelta;
-    this->ins.tempo = 120; // debug
+    this->ins.tempo = this->tapTempoOut;
     this->ins.beatsPerMeasure = this->state.beats;
     this->ins.subdivisionsPerMeasure = this->state.div;
     this->ins.phase = 0; // debug
@@ -193,12 +195,12 @@ void Module::process(float msDelta) {
     // Configure outputs
     output_sr_val[(uint8_t) OutputNames::Nothing] = HIGH;
     output_sr_val[(uint8_t) OutputNames::TruncateLED] = HIGH; // debug
-    output_sr_val[(uint8_t) OutputNames::DivLED] = HIGH; // debug this->outs.subdivision ? LOW : HIGH;
+    output_sr_val[(uint8_t) OutputNames::DivLED] = this->outs.subdivision ? LOW : HIGH;
     output_sr_val[(uint8_t) OutputNames::EoMOutput] = HIGH; // debug
     output_sr_val[(uint8_t) OutputNames::TruncateOutput] = HIGH; // debug
-    output_sr_val[(uint8_t) OutputNames::DivOutput] = HIGH; // debug this->outs.subdivision ? HIGH : LOW;
+    output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = HIGH; // debug this->outs.downbeat ? HIGH : LOW;
-    output_sr_val[(uint8_t) OutputNames::BeatOutput] = HIGH; // debug this->outs.beat ? HIGH : LOW;
+    output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? HIGH : LOW;
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
 
     // for (int i = 0; i < 8; i++)
@@ -211,7 +213,7 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::EoMLED] = HIGH; // debug
     leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = HIGH; // debug this->outs.downbeat ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::BeatLED] = HIGH; // debug this->outs.beat ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = LOW; //debug
     leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = HIGH; //debug
 
