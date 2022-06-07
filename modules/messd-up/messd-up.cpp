@@ -199,7 +199,7 @@ void Module::process(float msDelta) {
     output_sr_val[(uint8_t) OutputNames::EoMOutput] = HIGH; // debug
     output_sr_val[(uint8_t) OutputNames::TruncateOutput] = HIGH; // debug
     output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
-    output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = HIGH; // debug this->outs.downbeat ? HIGH : LOW;
+    output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? HIGH : LOW;
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
 
@@ -212,7 +212,7 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = HIGH; // debug this->outs.modulate ? HIGH : LOW;
     leds_sr_val[(uint8_t) LEDNames::EoMLED] = HIGH; // debug
     leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
-    leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = HIGH; // debug this->outs.downbeat ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = LOW; //debug
     leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = HIGH; //debug
