@@ -27,7 +27,7 @@ void Module::_processEncoders() {
             if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
         } else {
-			this->displayTempo = false;
+            this->displayTempo = false;
             state.beats += inc;
             if (state.beats < beatsDivMin)
                 state.beats = beatsDivMax;
@@ -46,7 +46,7 @@ void Module::_processEncoders() {
             if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
         } else {
-			this->displayTempo = false;
+            this->displayTempo = false;
             state.div += inc;
             if (state.div < beatsDivMin)
                 state.div = beatsDivMax;
@@ -171,6 +171,7 @@ void Module::process(float msDelta) {
     seven_segment_process(&seven_segment_sr, digitCounter, value);
     digitCounter++;
 
+    bool lastdiv = this->outs.subdivision;
     this->ins.delta = msDelta;
     this->ins.tempo = this->tapTempoOut;
     this->ins.beatsPerMeasure = this->state.beats;
@@ -185,27 +186,30 @@ void Module::process(float msDelta) {
     this->ins.isRoundTrip = 0; // debug
     this->ins.reset = 0; // debug
 
-    this->ins.wrap = 0; // debug
+    // compute wrap
+    int wrapvoltage = this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV];
+    if (wrapvoltage >= MAX_VOLTAGE) {
+        this->ins.truncation = 0;
+    } else {
+        float wrapfraction = ((float) wrapvoltage) / ((float) MAX_VOLTAGE);
+        wrapfraction *= this->state.beats;
+        wrapfraction = floorf(wrapfraction) + 1;
+        this->ins.truncation = (int) wrapfraction;
+    }
     this->ins.pulseWidth = 0.5; // debug
-
-    /* _scaleValues(); */
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
     // Configure outputs
     output_sr_val[(uint8_t) OutputNames::Nothing] = HIGH;
-    output_sr_val[(uint8_t) OutputNames::TruncateLED] = HIGH; // debug
+    output_sr_val[(uint8_t) OutputNames::TruncateLED] = this->outs.truncate ? LOW : HIGH;
     output_sr_val[(uint8_t) OutputNames::DivLED] = this->outs.subdivision ? LOW : HIGH;
     output_sr_val[(uint8_t) OutputNames::EoMOutput] = HIGH; // debug
-    output_sr_val[(uint8_t) OutputNames::TruncateOutput] = HIGH; // debug
+    output_sr_val[(uint8_t) OutputNames::TruncateOutput] = this->outs.truncate ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? HIGH : LOW;
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
-
-    // for (int i = 0; i < 8; i++)
-    // 	this->output_sr_val[i] = LOW;
-    // shift_register_process(&this->output_sr, this->output_sr_val, 8);
 
     // Configure LEDs
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
@@ -216,20 +220,7 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = LOW; //debug
     leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = HIGH; //debug
-
-    // for (int i = 0; i < 8; i++)
-    // 	this->leds_sr_val[i] = HIGH;
     shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
-
-    // digitalWrite(latchPinLEDs, LOW);
-
-    // for (int i = 0; i < 8; i++) {
-    // 	digitalWrite(clockPinLEDs, LOW);
-    // 	digitalWrite(dataPinLEDs, this->leds_sr_val[i]);
-    // 	digitalWrite(clockPinLEDs, HIGH);
-    // }
-
-    // digitalWrite(latchPinLEDs, HIGH);
 
     /* this->outputBuffer[BEATS_OUT] = this->outs.beat; */
     /* this->outputBuffer[SUBDIVISIONS_OUT] = this->outs.subdivision; */

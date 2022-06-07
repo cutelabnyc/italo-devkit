@@ -6,6 +6,8 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
+#define MAX_VOLTAGE	(1023)
+
 class Module : public ModuleInterface {
 private:
     messd_t messd;
