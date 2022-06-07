@@ -49,6 +49,14 @@ private:
     int beatsEncB = 0;
     int encStateBeats = 0;
 
+	// Storage for the clock switch
+	int clockSwitch = LOW;
+	float tapTempo = 120.0;
+	float tapTempoOut = 120.0;
+	unsigned long lastTapMicros = 0;
+	unsigned char totalTaps = 0;
+	bool displayTempo = true;
+
     uint16_t analogMuxOuts[8];
     uint16_t digitalMuxOuts[8];
 
@@ -93,6 +101,7 @@ private:
 
     void _scaleValues();
     void _processEncoders();
+	void _processTapTempo();
 
 public:
     Module();

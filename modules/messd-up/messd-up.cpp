@@ -37,6 +37,36 @@ void Module::_processEncoders() {
     }
 }
 
+void Module::_processTapTempo() {
+	int nextClockSwitch = digital_mux.outputs[DigitalMux.CLOCK_SWITCH];
+
+	if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
+		unsigned long nextTapMicros = micros();
+		unsigned long delta;
+		if (nextTapMicros < this->lastTapMicros) {
+			delta = (4294967295 - this->lastTapMicros) + nextTapMicros;
+		} else {
+			delta = nextTapMicros - this->lastTapMicros;
+		}
+
+		// Treat it as the first tap if it's been more than two seconds
+		if (delta > 2000000) {
+			totalTaps = 1;
+		} else if (totalTaps == 1) {
+			this->tapTempo = 60000000.0 / ((double) delta);
+			totalTaps++;
+		} else {
+			this->tapTempo = (60000000.0 / ((double) delta)) * (1.0 / (double) totalTaps) + this->tapTempo * ((totalTaps - 1) / (double) totalTaps);
+			this->tapTempoOut = this->tapTempo;
+			totalTaps = totalTaps >= 5 ? 5 : (totalTaps + 1);
+		}
+
+		this->lastTapMicros = nextTapMicros;
+	}
+
+	this->clockSwitch = nextClockSwitch;
+}
+
 Module::Module() { MS_init(&this->messd); };
 
 void Module::init() {
@@ -70,6 +100,7 @@ void Module::process(float msDelta) {
     _processEncoders();
     mux_process(&digital_mux);
     mux_process(&analog_mux);
+	_processTapTempo();
 
     if (digitCounter == 4) {
 		digitCounter = 0;
@@ -79,16 +110,32 @@ void Module::process(float msDelta) {
 
     switch (digitCounter) {
 		case 0:
-			value = state.div / 10;
+			if (this->displayTempo) {
+				value = ((long) this->tapTempoOut) / 1000;
+			} else {
+				value = state.div / 10;
+			}
 			break;
 		case 1:
-			value = state.div % 10;
+			if (this->displayTempo) {
+				value = (((long) this->tapTempoOut) / 100) % 10;
+			} else {
+				value = state.div % 10;
+			}
 			break;
 		case 2:
-			value = state.beats / 10;
+			if (this->displayTempo) {
+				value = (((long) this->tapTempoOut) / 10) % 10;
+			} else {
+				value = state.beats / 10;
+			}
 			break;
 		case 3:
-			value = state.beats % 10;
+			if (this->displayTempo) {
+				value = (long) this->tapTempoOut % 10;
+			} else {
+				value = state.beats % 10;
+			}
 			break;
     }
     seven_segment_process(&seven_segment_sr, digitCounter, value);
@@ -116,33 +163,33 @@ void Module::process(float msDelta) {
     MS_process(&this->messd, &this->ins, &this->outs);
 
 	// Configure outputs
-	output_sr_val[(uint8_t) OutputNames::Nothing] = LOW;
+	output_sr_val[(uint8_t) OutputNames::Nothing] = HIGH;
 	output_sr_val[(uint8_t) OutputNames::TruncateLED] = HIGH; // debug
-	output_sr_val[(uint8_t) OutputNames::DivLED] = this->outs.subdivision ? LOW : HIGH;
-	output_sr_val[(uint8_t) OutputNames::EoMOutput] = LOW; // debug
-	output_sr_val[(uint8_t) OutputNames::TruncateOutput] = LOW; // debug
-	output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
-	output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? HIGH : LOW;
-	output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? HIGH : LOW;
-	shift_register_process(&output_sr, this->output_sr_val, 8);
+	output_sr_val[(uint8_t) OutputNames::DivLED] = HIGH; // debug this->outs.subdivision ? LOW : HIGH;
+	output_sr_val[(uint8_t) OutputNames::EoMOutput] = HIGH; // debug
+	output_sr_val[(uint8_t) OutputNames::TruncateOutput] = HIGH; // debug
+	output_sr_val[(uint8_t) OutputNames::DivOutput] = HIGH; // debug this->outs.subdivision ? HIGH : LOW;
+	output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = HIGH; // debug this->outs.downbeat ? HIGH : LOW;
+	output_sr_val[(uint8_t) OutputNames::BeatOutput] = HIGH; // debug this->outs.beat ? HIGH : LOW;
+	shift_register_process(&output_sr, this->output_sr_val, 8, true);
 
 	// for (int i = 0; i < 8; i++)
 	// 	this->output_sr_val[i] = LOW;
 	// shift_register_process(&this->output_sr, this->output_sr_val, 8);
 
 	// Configure LEDs
-	leds_sr_val[(uint8_t) LEDNames::Nothing] = LOW;
-	leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = this->outs.modulate ? LOW : HIGH;
+	leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
+	leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = HIGH; // debug this->outs.modulate ? HIGH : LOW;
 	leds_sr_val[(uint8_t) LEDNames::EoMLED] = HIGH; // debug
-	leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = HIGH; //debug
-	leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
-	leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
-	leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = HIGH; //debug
+	leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
+	leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = HIGH; // debug this->outs.downbeat ? LOW : HIGH;
+	leds_sr_val[(uint8_t) LEDNames::BeatLED] = HIGH; // debug this->outs.beat ? LOW : HIGH;
+	leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = LOW; //debug
 	leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = HIGH; //debug
 
 	// for (int i = 0; i < 8; i++)
 	// 	this->leds_sr_val[i] = HIGH;
-	shift_register_process(&this->leds_sr, this->leds_sr_val, 8);
+	shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
 
 	// digitalWrite(latchPinLEDs, LOW);
 

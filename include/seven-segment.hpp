@@ -25,5 +25,5 @@ static void seven_segment_process(shift_register_t *shift_register,
     bitsToWrite[15 - i] = digitDisplay[valueToWrite][i];
   }
 
-  shift_register_process(shift_register, bitsToWrite, 16);
+  shift_register_process(shift_register, bitsToWrite, 16, false);
 }
