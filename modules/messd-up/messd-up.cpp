@@ -97,11 +97,22 @@ void Module::_processTapTempo(float msDelta) {
     this->clockSwitch = nextClockSwitch;
 }
 
+void Module::_processModSwitch() {
+    int nextModSwitch = digitalRead(this->modSwitchPin);
+    this->modSwitch = nextModSwitch;
+}
+
 Module::Module() { MS_init(&this->messd); };
 
 void Module::init() {
+
+	this->eomBuffer = EOM_BUFFER_MS;
+
     // Analog read pin for the digital mux
     pinMode(digitalMuxIn, INPUT);
+
+    // Digital read for the dedicated mod switch pin
+    pinMode(modSwitchPin, INPUT);
 
     // Setting all of the shift register pins to be outputs
     pinMode(clockPinSR, OUTPUT);
@@ -131,6 +142,7 @@ void Module::process(float msDelta) {
     mux_process(&analog_mux);
     _processTapTempo(msDelta);
     _processEncoders();
+    this->modSwitch = digitalRead(modSwitchPin);
 
     if (digitCounter == 4) {
         digitCounter = 0;
@@ -180,10 +192,12 @@ void Module::process(float msDelta) {
 
     this->ins.ext_clock = 0; // debug
     this->ins.truncation = 0; // debug
-    this->ins.metricModulation = 0; // debug
-    this->ins.latchChangesToDownbeat = 0; // debug
+    this->ins.modulationSignal = 0; // debug
+	this->ins.modulationSwitch = this->modSwitch == LOW; // active low
+    this->ins.latchChangesToDownbeat = false; // debug
+	this->ins.latchModulationToDownbeat = true; // debug
     this->ins.invert = 0; // debug
-    this->ins.isRoundTrip = 0; // debug
+    this->ins.isRoundTrip = true; // debug
     this->ins.reset = 0; // debug
 
     // compute wrap
@@ -200,11 +214,13 @@ void Module::process(float msDelta) {
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
+	if (this->outs.eom) this->eomBuffer = 0;
+
     // Configure outputs
     output_sr_val[(uint8_t) OutputNames::Nothing] = HIGH;
     output_sr_val[(uint8_t) OutputNames::TruncateLED] = this->outs.truncate ? LOW : HIGH;
     output_sr_val[(uint8_t) OutputNames::DivLED] = this->outs.subdivision ? LOW : HIGH;
-    output_sr_val[(uint8_t) OutputNames::EoMOutput] = HIGH; // debug
+    output_sr_val[(uint8_t) OutputNames::EoMOutput] = this->eomBuffer < EOM_BUFFER_MS ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::TruncateOutput] = this->outs.truncate ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? HIGH : LOW;
@@ -213,12 +229,12 @@ void Module::process(float msDelta) {
 
     // Configure LEDs
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
-    leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = HIGH; // debug this->outs.modulate ? HIGH : LOW;
-    leds_sr_val[(uint8_t) LEDNames::EoMLED] = HIGH; // debug
+    leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = this->outs.modulationPending ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_BUFFER_MS ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = LOW; //debug
+    leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = HIGH; //debug
     leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = HIGH; //debug
     shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
 
@@ -226,4 +242,6 @@ void Module::process(float msDelta) {
     /* this->outputBuffer[SUBDIVISIONS_OUT] = this->outs.subdivision; */
     /* this->outputBuffer[DOWNBEAT_OUT] = this->outs.downbeat; */
     /* this->outputBuffer[PHASE_OUT] = this->outs.phase; */
+
+	this->eomBuffer += msDelta;
 };

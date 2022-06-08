@@ -7,12 +7,15 @@
 #include <cutemodules.h>
 
 #define MAX_VOLTAGE	(1023)
-
+#define EOM_BUFFER_MS (10)
 class Module : public ModuleInterface {
 private:
     messd_t messd;
     messd_ins_t ins;
     messd_outs_t outs;
+
+	// Modulation switch gets its own dedicated pin
+	int modSwitchPin = A3; // PC3
 
     // Shift register pins (seven segment)
     int dataPinSR = 11;  // PB3
@@ -64,6 +67,10 @@ private:
 	bool displayTempo = false;
 	int tempoDisplayTime = 0;
 
+	// Storage for the modulation switch
+	int modSwitch = HIGH; // active high
+	int eomBuffer = 0;
+
     uint16_t analogMuxOuts[8];
     uint16_t digitalMuxOuts[8];
 
@@ -109,6 +116,7 @@ private:
     void _scaleValues();
     void _processEncoders();
 	void _processTapTempo(float msDelta);
+	void _processModSwitch();
 
 public:
     Module();
