@@ -102,11 +102,14 @@ void Module::_processModSwitch() {
     this->modSwitch = nextModSwitch;
 }
 
-Module::Module() { MS_init(&this->messd); };
+Module::Module() {
+    MS_init(&this->messd);
+    phasor_init(&this->clock);
+};
 
 void Module::init() {
 
-	this->eomBuffer = EOM_BUFFER_MS;
+    this->eomBuffer = EOM_BUFFER_MS;
 
     // Analog read pin for the digital mux
     pinMode(digitalMuxIn, INPUT);
@@ -143,6 +146,7 @@ void Module::process(float msDelta) {
     _processTapTempo(msDelta);
     _processEncoders();
     this->modSwitch = digitalRead(modSwitchPin);
+
 
     if (digitCounter == 4) {
         digitCounter = 0;
@@ -183,19 +187,23 @@ void Module::process(float msDelta) {
     seven_segment_process(&seven_segment_sr, digitCounter, value);
     digitCounter++;
 
+    // Update the internal clock
+    float phaseDelta = (this->tapTempoOut * msDelta) / (60000.0f);
+    float clockPhase = phasor_step(&this->clock, phaseDelta);
+
     bool lastdiv = this->outs.subdivision;
     this->ins.delta = msDelta;
     this->ins.tempo = this->tapTempoOut;
     this->ins.beatsPerMeasure = this->state.beats;
     this->ins.subdivisionsPerMeasure = this->state.div;
     this->ins.phase = 0; // debug
+    this->ins.ext_clock = clockPhase < 0.5;
 
-    this->ins.ext_clock = 0; // debug
     this->ins.truncation = 0; // debug
     this->ins.modulationSignal = 0; // debug
-	this->ins.modulationSwitch = this->modSwitch == LOW; // active low
+    this->ins.modulationSwitch = this->modSwitch == LOW; // active low
     this->ins.latchChangesToDownbeat = false; // debug
-	this->ins.latchModulationToDownbeat = true; // debug
+    this->ins.latchModulationToDownbeat = true; // debug
     this->ins.invert = 0; // debug
     this->ins.isRoundTrip = true; // debug
     this->ins.reset = 0; // debug
@@ -214,7 +222,22 @@ void Module::process(float msDelta) {
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
-	if (this->outs.eom) this->eomBuffer = 0;
+    if (this->outs.eom) {
+		this->eomBuffer = 0;
+		this->animateModulateButtonTime = 0.0f;
+	}
+
+	// Animate the modulation button
+	bool modButtonOn = false;
+    if (this->outs.modulationPending) {
+		modButtonOn = this->animateModulateButtonTime < MOD_BUTTON_STROBE_SLOW;
+		this->animateModulateButtonTime += msDelta;
+		if (this->animateModulateButtonTime > (2.0f * MOD_BUTTON_STROBE_SLOW)) {
+			this->animateModulateButtonTime = fmodf(this->animateModulateButtonTime, (2.0f * MOD_BUTTON_STROBE_SLOW));
+		}
+    } else if (this->outs.inRoundTripModulation) {
+		modButtonOn = true;
+	}
 
     // Configure outputs
     output_sr_val[(uint8_t) OutputNames::Nothing] = HIGH;
@@ -229,8 +252,8 @@ void Module::process(float msDelta) {
 
     // Configure LEDs
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
-    leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = this->outs.modulationPending ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_BUFFER_MS ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_LED_BUFFER_MS ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
@@ -243,5 +266,6 @@ void Module::process(float msDelta) {
     /* this->outputBuffer[DOWNBEAT_OUT] = this->outs.downbeat; */
     /* this->outputBuffer[PHASE_OUT] = this->outs.phase; */
 
-	this->eomBuffer += msDelta;
+    this->eomBuffer += msDelta;
+    if (this->eomBuffer > 5000000) this->eomBuffer = 5000000;
 };

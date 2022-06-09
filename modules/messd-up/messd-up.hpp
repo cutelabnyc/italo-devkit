@@ -8,9 +8,12 @@
 
 #define MAX_VOLTAGE	(1023)
 #define EOM_BUFFER_MS (10)
+#define EOM_LED_BUFFER_MS (100)
+#define MOD_BUTTON_STROBE_SLOW (250)
 class Module : public ModuleInterface {
 private:
     messd_t messd;
+	phasor_t clock;
     messd_ins_t ins;
     messd_outs_t outs;
 
@@ -69,7 +72,11 @@ private:
 
 	// Storage for the modulation switch
 	int modSwitch = HIGH; // active high
-	int eomBuffer = 0;
+	float eomBuffer = 0.0f;
+
+	// Storage for animations on the modulate button
+	bool animateModulateButton = false;
+	float animateModulateButtonTime = 0.0f;
 
     uint16_t analogMuxOuts[8];
     uint16_t digitalMuxOuts[8];
