@@ -196,16 +196,14 @@ void Module::process(float msDelta) {
     this->ins.tempo = this->tapTempoOut;
     this->ins.beatsPerMeasure = this->state.beats;
     this->ins.subdivisionsPerMeasure = this->state.div;
-    this->ins.phase = 0; // debug
+    this->ins.phase = 0; // unused
     this->ins.ext_clock = clockPhase < 0.5;
-
-    this->ins.truncation = 0; // debug
     this->ins.modulationSignal = 0; // debug
     this->ins.modulationSwitch = this->modSwitch == LOW; // active low
     this->ins.latchChangesToDownbeat = false; // debug
     this->ins.latchModulationToDownbeat = true; // debug
-    this->ins.invert = 0; // debug
-    this->ins.isRoundTrip = true; // debug
+    this->ins.invert = 0; // unused
+    this->ins.isRoundTrip = analog_mux.outputs[AnalogMux.ROUND_SWITCH] < (MAX_VOLTAGE >> 1); // debug
     this->ins.reset = 0; // debug
 
     // compute wrap
