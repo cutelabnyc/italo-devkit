@@ -191,6 +191,16 @@ void Module::process(float msDelta) {
     float phaseDelta = (this->tapTempoOut * msDelta) / (60000.0f);
     float clockPhase = phasor_step(&this->clock, phaseDelta);
 
+	// Handle divide and beat switches
+	if (digital_mux.outputs[DigitalMux.DIV_SWITCH] == LOW) {
+		if (div_switch_state_prev == HIGH) div_latch = !div_latch;
+	}
+	div_switch_state_prev = digital_mux.outputs[DigitalMux.DIV_SWITCH];
+	if (digital_mux.outputs[DigitalMux.BEAT_SWITCH] == LOW) {
+		if (beat_switch_state_prev == HIGH) beat_latch = !beat_latch;
+	}
+	beat_switch_state_prev = digital_mux.outputs[DigitalMux.BEAT_SWITCH];
+
     bool lastdiv = this->outs.subdivision;
     this->ins.delta = msDelta;
     this->ins.tempo = this->tapTempoOut;
@@ -200,21 +210,20 @@ void Module::process(float msDelta) {
     this->ins.ext_clock = clockPhase < 0.5;
     this->ins.modulationSignal = 0; // debug
     this->ins.modulationSwitch = this->modSwitch == LOW; // active low
-    this->ins.latchChangesToDownbeat = false; // debug
-    this->ins.latchModulationToDownbeat = true; // debug
+    this->ins.latchBeatChangesToDownbeat = beat_latch;
+	this->ins.latchDivChangesToDownbeat = div_latch;
+    this->ins.latchModulationToDownbeat = analog_mux.outputs[AnalogMux.LATCH_SWITCH] > (MAX_VOLTAGE >> 1);
     this->ins.invert = 0; // unused
-    this->ins.isRoundTrip = analog_mux.outputs[AnalogMux.ROUND_SWITCH] < (MAX_VOLTAGE >> 1); // debug
+    this->ins.isRoundTrip = analog_mux.outputs[AnalogMux.ROUND_SWITCH] < (MAX_VOLTAGE >> 1);
     this->ins.reset = 0; // debug
 
     // compute wrap
     int wrapvoltage = this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV];
     if (wrapvoltage >= MAX_VOLTAGE) {
-        this->ins.truncation = 0;
+        this->ins.truncation = -1.0f;
     } else {
         float wrapfraction = ((float) wrapvoltage) / ((float) MAX_VOLTAGE);
-        wrapfraction *= this->state.beats;
-        wrapfraction = floorf(wrapfraction) + 1;
-        this->ins.truncation = (int) wrapfraction;
+        this->ins.truncation = wrapfraction;
     }
     this->ins.pulseWidth = 0.5; // debug
 
@@ -255,8 +264,8 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = HIGH; //debug
-    leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = HIGH; //debug
+    leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = this->beat_latch ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = this->div_latch ? LOW : HIGH;
     shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
 
     /* this->outputBuffer[BEATS_OUT] = this->outs.beat; */

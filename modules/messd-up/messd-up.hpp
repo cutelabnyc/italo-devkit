@@ -147,8 +147,8 @@ public:
     struct DigitalMux {
         int BEAT_ENC_A = 0;
         int BEAT_ENC_B = 1;
-        int DIV_SWITCH = 2;
-        int BEAT_SWITCH = 3;
+        int BEAT_SWITCH = 2;
+        int DIV_SWITCH = 3;
         int DIVIDE_ENC_B = 4;
         int CLOCK_IN = 5;
         int DIVIDE_ENC_A = 6;
