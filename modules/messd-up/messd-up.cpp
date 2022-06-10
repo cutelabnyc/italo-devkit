@@ -218,6 +218,11 @@ void Module::process(float msDelta) {
     this->ins.reset = 0; // debug
 
     // compute wrap
+	float baseTruncation = (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV] / (float) MAX_VOLTAGE;
+	float truncationOffset = (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] / (float) MAX_VOLTAGE;
+	// Skip this offset, for now
+	// truncationOffset -= 1.0f;
+	baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
     int wrapvoltage = this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV];
     if (wrapvoltage >= MAX_VOLTAGE) {
         this->ins.truncation = -1.0f;
