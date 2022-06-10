@@ -174,6 +174,10 @@ void Module::init() {
     pinMode(m1, OUTPUT);
     pinMode(m2, OUTPUT);
 
+	// Clock pins
+	pinMode(clockIn, INPUT);
+	pinMode(clockOut, OUTPUT);
+
     for (int i = 0; i < 8; i++) {
         output_sr_val[i] = 0;
         leds_sr_val[i] = 0;
@@ -182,15 +186,22 @@ void Module::init() {
 
 void Module::process(float msDelta) {
 
+	// Update the internal clock
+    float phaseDelta = (this->tapTempoOut * msDelta) / (60000.0f);
+    float clockPhase = phasor_step(&this->clock, phaseDelta);
+	digitalWrite(clockOut, clockPhase < 0.5 ? HIGH : LOW);
+
+#ifdef FORCE_INTERNAL_CLOCK
+	uint8_t clockInput = clockPhase < 0.5;
+#else
+	uint8_t clockInput = digitalRead(clockIn);
+#endif
+
     mux_process(&digital_mux);
     mux_process(&analog_mux);
     _processTapTempo(msDelta);
     _processEncoders();
     this->modSwitch = digitalRead(modSwitchPin);
-
-    // Update the internal clock
-    float phaseDelta = (this->tapTempoOut * msDelta) / (60000.0f);
-    float clockPhase = phasor_step(&this->clock, phaseDelta);
 
     // Handle divide and beat switches
     if (digital_mux.outputs[DigitalMux.DIV_SWITCH] == LOW) {
@@ -230,7 +241,7 @@ void Module::process(float msDelta) {
     this->ins.beatsPerMeasure = state.activeBeats;
     this->ins.subdivisionsPerMeasure = state.activeDiv;
     this->ins.phase = 0; // unused
-    this->ins.ext_clock = clockPhase < 0.5;
+    this->ins.ext_clock = clockInput == HIGH;
     this->ins.modulationSignal = 0; // debug
     this->ins.modulationSwitch = this->modSwitch == LOW; // active low
     this->ins.latchBeatChangesToDownbeat = beat_latch;
@@ -250,8 +261,6 @@ void Module::process(float msDelta) {
     baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
 	this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
     this->ins.pulseWidth = 0.5; // debug
-
-	Serial.println(baseTruncation);
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
@@ -287,7 +296,7 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
     leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_LED_BUFFER_MS ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = this->clockSwitch; //debug
+    leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = clockPhase < 0.5 ? LOW : HIGH; // clockInput == HIGH ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = this->beat_latch ? LOW : HIGH;

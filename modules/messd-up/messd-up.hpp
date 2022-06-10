@@ -12,6 +12,7 @@
 #define MOD_BUTTON_STROBE_SLOW (250)
 
 // #define IS_POWERED_FROM_ARDUINO
+#define FORCE_INTERNAL_CLOCK
 
 class Module : public ModuleInterface {
 private:
@@ -19,6 +20,10 @@ private:
 	phasor_t clock;
     messd_ins_t ins;
     messd_outs_t outs;
+
+	// Clock pins
+	int clockIn = 12; // PB4
+	int clockOut = A1; // PC1
 
 	// Modulation switch gets its own dedicated pin
 	int modSwitchPin = A3; // PC3
