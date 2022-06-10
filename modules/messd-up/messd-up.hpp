@@ -10,6 +10,9 @@
 #define EOM_BUFFER_MS (10)
 #define EOM_LED_BUFFER_MS (100)
 #define MOD_BUTTON_STROBE_SLOW (250)
+
+// #define IS_POWERED_FROM_ARDUINO
+
 class Module : public ModuleInterface {
 private:
     messd_t messd;
@@ -124,6 +127,7 @@ private:
     void _processEncoders();
 	void _processTapTempo(float msDelta);
 	void _processModSwitch();
+	void _display();
 
 public:
     Module();
@@ -131,6 +135,8 @@ public:
     struct state {
         int beats = 4;
         int div = 7;
+		int activeBeats = 4;
+		int activeDiv = 7;
     } state;
 
     struct AnalogMux {
