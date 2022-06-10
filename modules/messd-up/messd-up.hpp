@@ -8,8 +8,10 @@
 
 #define MAX_VOLTAGE	(1023)
 #define EOM_BUFFER_MS (10)
-#define EOM_LED_BUFFER_MS (100)
+#define EOM_LED_BUFFER_MS (250)
 #define MOD_BUTTON_STROBE_SLOW (250)
+#define MOD_BUTTON_RESET_TIME_MS (2000)
+#define TEMPO_DISPLAY_TIME (2000)
 
 // #define IS_POWERED_FROM_ARDUINO
 #define FORCE_INTERNAL_CLOCK
@@ -73,14 +75,16 @@ private:
 	int clockSwitch = LOW;
 	float tapTempo = 120.0;
 	float tapTempoOut = 120.0;
+	float scaledTempo = 120.0f;
 	unsigned long lastTapMicros = 0;
 	unsigned char totalTaps = 0;
 	bool displayTempo = false;
 	int tempoDisplayTime = 0;
 
 	// Storage for the modulation switch
-	int modSwitch = HIGH; // active high
+	int modSwitch = HIGH; // active low
 	float eomBuffer = 0.0f;
+	float modHoldTime = 0.0;
 
 	// Storage for animations on the modulate button
 	bool animateModulateButton = false;
@@ -131,7 +135,7 @@ private:
     void _scaleValues();
     void _processEncoders();
 	void _processTapTempo(float msDelta);
-	void _processModSwitch();
+	void _processModSwitch(float msDelta);
 	void _display();
 
 public:
