@@ -298,7 +298,9 @@ void Module::process(float msDelta) {
 
     // Animate the modulation button
     bool modButtonOn = false;
-    if (this->outs.modulationPending) {
+	if (this->modSwitch == LOW) {
+		modButtonOn = true;
+	} else if (this->outs.modulationPending) {
         modButtonOn = this->animateModulateButtonTime < MOD_BUTTON_STROBE_SLOW;
         this->animateModulateButtonTime += msDelta;
         if (this->animateModulateButtonTime > (2.0f * MOD_BUTTON_STROBE_SLOW)) {
