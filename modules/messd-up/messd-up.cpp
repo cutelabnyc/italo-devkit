@@ -16,8 +16,8 @@ void Module::_scaleValues() {
 
 void Module::_processEncoders() {
     int inc =
-    encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
-        digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
+		encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
+        	digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
     if (inc != 0) {
 
         // When you hold down the clock button, you set the tempo with the knobs
@@ -27,7 +27,7 @@ void Module::_processEncoders() {
             if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
         } else {
-            this->displayTempo = false;
+            this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
             state.beats += inc;
             if (state.beats < beatsDivMin)
                 state.beats = beatsDivMax;
@@ -46,7 +46,7 @@ void Module::_processEncoders() {
             if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
         } else {
-            this->displayTempo = false;
+			this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
             state.div += inc;
             if (state.div < beatsDivMin)
                 state.div = beatsDivMax;
@@ -86,12 +86,8 @@ void Module::_processTapTempo(float msDelta) {
         if (this->tapTempo > Module::tapTempoMax) this->tapTempo = this->tapTempoOut = Module::tapTempoMax;
     }
 
-    if (nextClockSwitch == LOW) {
-        this->displayTempo = true;
-        this->tempoDisplayTime = 0;
-    } else {
+    if (nextClockSwitch != LOW) {
         this->tempoDisplayTime += msDelta;
-        if (this->tempoDisplayTime > TEMPO_DISPLAY_TIME) this->displayTempo = false;
     }
 
     this->clockSwitch = nextClockSwitch;
@@ -104,6 +100,7 @@ void Module::_processModSwitch(float msDelta) {
 		this->modHoldTime += msDelta;
 	} else {
 		this->modHoldTime = 0;
+		this->canTriggerReset = true;
 	}
 }
 
@@ -115,34 +112,50 @@ void Module::_display() {
     int value;
 	long displayableTempo = (long) floor(this->scaledTempo);
 
+	if (this->outs.resetPending) {
+		this->displayState = DisplayState::Pop;
+	} else if (this->clockSwitch == LOW || this->tempoDisplayTime < TEMPO_DISPLAY_TIME) {
+		this->displayState = DisplayState::Tempo;
+	} else {
+		this->displayState = DisplayState::Default;
+	}
+
     switch (digitCounter) {
         case 0:
-            if (this->displayTempo) {
+            if (this->displayState == DisplayState::Tempo) {
                 value = (displayableTempo) / 1000;
-            } else {
+            } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv / 10;
-            }
+            } else if (this->displayState == DisplayState::Pop) {
+				value = (int) SpecialDigits::Nothing;
+			}
             break;
         case 1:
-            if (this->displayTempo) {
+            if (this->displayState == DisplayState::Tempo) {
                 value = ((displayableTempo) / 100) % 10;
-            } else {
+            } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv % 10;
-            }
+            } else if (this->displayState == DisplayState::Pop) {
+				value = (int) SpecialDigits::P;
+			}
             break;
         case 2:
-            if (this->displayTempo) {
+            if (this->displayState == DisplayState::Tempo) {
                 value = ((displayableTempo) / 10) % 10;
-            } else {
+            } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats / 10;
-            }
+            } else if (this->displayState == DisplayState::Pop) {
+				value = 0;
+			}
             break;
         case 3:
-            if (this->displayTempo) {
+            if (this->displayState == DisplayState::Tempo) {
                 value = displayableTempo % 10;
-            } else {
+            } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats % 10;
-            }
+            } else if (this->displayState == DisplayState::Pop) {
+				value = (int) SpecialDigits::P;
+			}
             break;
     }
     seven_segment_process(&seven_segment_sr, digitCounter, value);
@@ -256,10 +269,9 @@ void Module::process(float msDelta) {
     this->ins.invert = 0; // unused
     this->ins.isRoundTrip = analog_mux.outputs[AnalogMux.ROUND_SWITCH] < (MAX_VOLTAGE >> 1);
 
-	if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS) {
+	if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS && this->canTriggerReset) {
 		this->ins.reset = true;
-		this->displayTempo = true;
-        this->tempoDisplayTime = 0;
+		this->canTriggerReset = false;
 	} else {
 		this->ins.reset = false;
 	}
@@ -280,7 +292,6 @@ void Module::process(float msDelta) {
     if (this->outs.eom) {
         this->eomBuffer = 0;
         this->animateModulateButtonTime = 0.0f;
-		this->displayTempo = true;
         this->tempoDisplayTime = 0;
 		this->state.div = this->ins.subdivisionsPerMeasure;
     }

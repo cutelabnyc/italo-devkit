@@ -71,6 +71,14 @@ private:
     int beatsEncB = 0;
     int encStateBeats = 0;
 
+	// Different display types
+	enum class DisplayState {
+		Default = 0,
+		Tempo,
+		Pop
+	};
+	DisplayState displayState = DisplayState::Default;
+
 	// Storage for the clock switch
 	int clockSwitch = LOW;
 	float tapTempo = 120.0;
@@ -78,11 +86,11 @@ private:
 	float scaledTempo = 120.0f;
 	unsigned long lastTapMicros = 0;
 	unsigned char totalTaps = 0;
-	bool displayTempo = false;
-	int tempoDisplayTime = 0;
+	int tempoDisplayTime = TEMPO_DISPLAY_TIME;
 
 	// Storage for the modulation switch
 	int modSwitch = HIGH; // active low
+	int canTriggerReset = 1;
 	float eomBuffer = 0.0f;
 	float modHoldTime = 0.0;
 

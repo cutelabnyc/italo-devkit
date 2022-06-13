@@ -1,7 +1,12 @@
 #include "shift-register.hpp"
 #include <Arduino.h>
 
-const int digitDisplay[10][8]{
+enum class SpecialDigits {
+	P = 10,
+	Nothing = 11
+};
+
+const int digitDisplay[12][8]{
     // NUMBERS
     {1, 1, 1, 1, 1, 0, 1, 0}, // ZERO
     {0, 0, 1, 0, 0, 0, 1, 0}, // ONE
@@ -13,6 +18,10 @@ const int digitDisplay[10][8]{
     {0, 0, 1, 1, 0, 0, 1, 0}, // SEVEN
     {1, 1, 1, 1, 1, 1, 1, 0}, // EIGHT
     {0, 0, 1, 1, 1, 1, 1, 0}, // NINE
+
+	// SPECIAL CHARACTERS
+	{1, 0, 0, 1, 1, 1, 1, 0}, // P
+	{0, 0, 0, 0, 0, 0, 0, 0}, // Nothing
 };
 
 static void seven_segment_process(shift_register_t *shift_register,
