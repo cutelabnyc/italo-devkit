@@ -2,8 +2,8 @@
 #include <Arduino.h>
 
 enum class SpecialDigits {
-	P = 10,
-	Nothing = 11
+    P = 10,
+    Nothing = 11
 };
 
 const int digitDisplay[12][8]{
@@ -19,20 +19,22 @@ const int digitDisplay[12][8]{
     {1, 1, 1, 1, 1, 1, 1, 0}, // EIGHT
     {0, 0, 1, 1, 1, 1, 1, 0}, // NINE
 
-	// SPECIAL CHARACTERS
-	{1, 0, 0, 1, 1, 1, 1, 0}, // P
-	{0, 0, 0, 0, 0, 0, 0, 0}, // Nothing
+    // SPECIAL CHARACTERS
+    {1, 0, 0, 1, 1, 1, 1, 0}, // P
+    {0, 0, 0, 0, 0, 0, 0, 0}, // Nothing
 };
 
 static void seven_segment_process(shift_register_t *shift_register,
-                                  uint8_t indexToWrite, uint8_t valueToWrite) {
+                                  uint8_t indexToWrite, uint8_t valueToWrite, uint8_t decimal) {
 
-  uint8_t bitsToWrite[16];
+    uint8_t bitsToWrite[16];
 
-  for (int i = 0; i < 8; i++) {
-    bitsToWrite[7 - i] = (indexToWrite == i ? HIGH : LOW);
-    bitsToWrite[15 - i] = digitDisplay[valueToWrite][i];
-  }
+    for (int i = 0; i < 8; i++) {
+        bool writeHigh = (i == indexToWrite);
+        writeHigh |= (i == 6) && decimal;
+        bitsToWrite[7 - i] = (writeHigh ? HIGH : LOW);
+        bitsToWrite[15 - i] = digitDisplay[valueToWrite][i];
+    }
 
-  shift_register_process(shift_register, bitsToWrite, 16, false);
+    shift_register_process(shift_register, bitsToWrite, 16, false);
 }

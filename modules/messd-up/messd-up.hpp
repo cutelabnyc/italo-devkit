@@ -19,31 +19,29 @@
 class Module : public ModuleInterface {
 private:
     messd_t messd;
-	phasor_t clock;
     messd_ins_t ins;
     messd_outs_t outs;
+	unsigned long lastProcessTime = 0;
+	unsigned long lastRecordedHighClockTime = 0;
+	unsigned long measuredPeriod = 500000;
 
-	// Clock pins
-	int clockIn = 12; // PB4
-	int clockOut = A1; // PC1
-
-	// Modulation switch gets its own dedicated pin
-	int modSwitchPin = A3; // PC3
+    // Modulation switch gets its own dedicated pin
+    int modSwitchPin = A3; // PC3
 
     // Shift register pins (seven segment)
     int dataPinSR = 11;  // PB3
     int latchPinSR = 9;  // PB1
     int clockPinSR = 10; // PB2
 
-	// Output shift register pins
-	int dataPinOuts = 7; // PD7
-	int latchPinOuts = 6; // PD6
-	int clockPinOuts = 5; // PD5
+    // Output shift register pins
+    int dataPinOuts = 7; // PD7
+    int latchPinOuts = 6; // PD6
+    int clockPinOuts = 5; // PD5
 
-	// LED shift register pins
-	int dataPinLEDs = 8; // PB0
-	int latchPinLEDs = A4; // PC4
-	int clockPinLEDs = A5; // PC5
+    // LED shift register pins
+    int dataPinLEDs = 8; // PB0
+    int latchPinLEDs = A4; // PC4
+    int clockPinLEDs = A5; // PC5
 
     // Mux controller pins
     int m0 = 4; // PD4
@@ -53,10 +51,10 @@ private:
     // consts
     static const int beatsDivMin = 2;
     static const int beatsDivMax = 32;
-	static const int tempoMin = 10;
-	static const int tempoMax = 500;
-	static const int tapTempoMin = 40;
-	static const int tapTempoMax = 280;
+    static const int tempoMin = 10;
+    static const int tempoMax = 500;
+    static const int tapTempoMin = 40;
+    static const int tapTempoMax = 280;
 
     int analogMuxIn = A0;  // PC0
     int digitalMuxIn = A2; // PC2
@@ -71,32 +69,31 @@ private:
     int beatsEncB = 0;
     int encStateBeats = 0;
 
-	// Different display types
-	enum class DisplayState {
-		Default = 0,
-		Tempo,
-		Pop
-	};
-	DisplayState displayState = DisplayState::Default;
+    // Different display types
+    enum class DisplayState {
+        Default = 0,
+        Tempo,
+        Pop
+    };
+    DisplayState displayState = DisplayState::Default;
 
-	// Storage for the clock switch
-	int clockSwitch = LOW;
-	float tapTempo = 120.0;
-	float tapTempoOut = 120.0;
-	float scaledTempo = 120.0f;
-	unsigned long lastTapMicros = 0;
-	unsigned char totalTaps = 0;
-	int tempoDisplayTime = TEMPO_DISPLAY_TIME;
+    // Storage for the clock switch
+    int clockSwitch = LOW;
+    float tapTempo = 120.0;
+    float scaledTempo = 120.0f;
+    unsigned long lastTapMicros = 0;
+    unsigned char totalTaps = 0;
+    int tempoDisplayTime = TEMPO_DISPLAY_TIME;
 
-	// Storage for the modulation switch
-	int modSwitch = HIGH; // active low
-	int canTriggerReset = 1;
-	float eomBuffer = 0.0f;
-	float modHoldTime = 0.0;
+    // Storage for the modulation switch
+    int modSwitch = HIGH; // active low
+    int canTriggerReset = 1;
+    float eomBuffer = 0.0f;
+    float modHoldTime = 0.0;
 
-	// Storage for animations on the modulate button
-	bool animateModulateButton = false;
-	float animateModulateButtonTime = 0.0f;
+    // Storage for animations on the modulate button
+    bool animateModulateButton = false;
+    float animateModulateButtonTime = 0.0f;
 
     uint16_t analogMuxOuts[8];
     uint16_t digitalMuxOuts[8];
@@ -105,31 +102,31 @@ private:
     int pot0 = 0;
     int pot1 = 0;
 
-	// Storage for output shift register
-	uint8_t output_sr_val[8];
-	enum class OutputNames {
-		Nothing = 0,
-		TruncateLED,
-		DivLED,
-		EoMOutput,
-		TruncateOutput,
-		DivOutput,
-		DownbeatOutput,
-		BeatOutput
-	};
+    // Storage for output shift register
+    uint8_t output_sr_val[8];
+    enum class OutputNames {
+        Nothing = 0,
+        TruncateLED,
+        DivLED,
+        EoMOutput,
+        TruncateOutput,
+        DivOutput,
+        DownbeatOutput,
+        BeatOutput
+    };
 
-	// Storage for LED shift register
-	uint8_t leds_sr_val[8];
-	enum class LEDNames {
-		ModLEDButton = 0,
-		EoMLED,
-		ClockLEDButton,
-		DownbeatLED,
-		BeatLED,
-		BeatLatchLED,
-		DivLatchLED,
-		Nothing
-	};
+    // Storage for LED shift register
+    uint8_t leds_sr_val[8];
+    enum class LEDNames {
+        ModLEDButton = 0,
+        EoMLED,
+        ClockLEDButton,
+        DownbeatLED,
+        BeatLED,
+        BeatLatchLED,
+        DivLatchLED,
+        Nothing
+    };
 
     // Storage for the latch switches
     int beat_latch = 0;
@@ -142,9 +139,9 @@ private:
 
     void _scaleValues();
     void _processEncoders();
-	void _processTapTempo(float msDelta);
-	void _processModSwitch(float msDelta);
-	void _display();
+    void _processTapTempo(float msDelta);
+    void _processModSwitch(float msDelta);
+    void _display();
 
 public:
     Module();
@@ -152,8 +149,8 @@ public:
     struct state {
         int beats = 4;
         int div = 7;
-		int activeBeats = 4;
-		int activeDiv = 7;
+        int activeBeats = 4;
+        int activeDiv = 7;
     } state;
 
     struct AnalogMux {
@@ -179,8 +176,8 @@ public:
     } DigitalMux;
 
     shift_register_t seven_segment_sr = {dataPinSR, latchPinSR, clockPinSR};
-	shift_register_t output_sr = {dataPinOuts, latchPinOuts, clockPinOuts};
-	shift_register_t leds_sr = {dataPinLEDs, latchPinLEDs, clockPinLEDs};
+    shift_register_t output_sr = {dataPinOuts, latchPinOuts, clockPinOuts};
+    shift_register_t leds_sr = {dataPinLEDs, latchPinLEDs, clockPinLEDs};
 
     encoder_t div_encoder = {HIGH, HIGH, 0};
     encoder_t beat_encoder = {HIGH, HIGH, 0};

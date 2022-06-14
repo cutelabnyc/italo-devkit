@@ -1,4 +1,46 @@
 #include "messd-up.hpp"
+#include <avr/interrupt.h>
+
+#define USE_TIMER_1     true
+#define USE_TIMER_2     true
+#include <TimerInterrupt.h>
+
+// Got to be globals to work with the arduino timer. TODO: Figure out how to do this on other platforms
+// Internal clock
+volatile unsigned long accurateTime = 0;
+volatile phasor_t clock;
+volatile float tapTempoOut = 120.0;
+volatile float clockPhase = 0.0f;
+int clockIn = 12; // PB4
+int clockOut = A1; // PC1
+volatile int a = 0;
+volatile uint8_t lastClockVal = LOW;
+
+// More accurate input clock high detection
+volatile unsigned long lastHighClockTime = 0;
+
+#define TIMER_FREQ_HZ        5000.0f
+static void TimerHandler()
+{
+    unsigned long nextAccurateMicros = micros();
+    unsigned long delta;
+    if (nextAccurateMicros < accurateTime) {
+        delta = (4294967295 - accurateTime) + nextAccurateMicros;
+    } else {
+        delta = nextAccurateMicros - accurateTime;
+    }
+    accurateTime = nextAccurateMicros;
+
+    // Update the internal clock
+    float phaseDelta = (tapTempoOut * ((float) delta) / (60000000.0f));
+    clockPhase = phasor_step((phasor_t *) &clock, phaseDelta);
+    digitalWrite(clockOut, clockPhase < 0.5 ? HIGH : LOW);
+}
+
+ISR (PCINT0_vect) {
+    if (digitalRead(clockIn) == HIGH)
+        lastHighClockTime = micros();
+}
 
 void Module::_scaleValues() {
     this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
@@ -16,16 +58,16 @@ void Module::_scaleValues() {
 
 void Module::_processEncoders() {
     int inc =
-		encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
-        	digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
+        encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
+            digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
     if (inc != 0) {
 
         // When you hold down the clock button, you set the tempo with the knobs
         if (this->clockSwitch == LOW) {
             this->tapTempo += inc;
-            this->tapTempoOut += inc;
-            if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
-            if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
+            tapTempoOut += inc;
+            if (this->tapTempo < Module::tempoMin) this->tapTempo = tapTempoOut = Module::tempoMin;
+            if (this->tapTempo > Module::tempoMax) this->tapTempo = tapTempoOut = Module::tempoMax;
         } else {
             this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
             state.beats += inc;
@@ -42,11 +84,11 @@ void Module::_processEncoders() {
         // When you hold down the clock button, you set the tempo with the knobs
         if (this->clockSwitch == LOW) {
             this->tapTempo += inc * 10;
-            this->tapTempoOut += inc * 10;
-            if (this->tapTempo < Module::tempoMin) this->tapTempo = this->tapTempoOut = Module::tempoMin;
-            if (this->tapTempo > Module::tempoMax) this->tapTempo = this->tapTempoOut = Module::tempoMax;
+            tapTempoOut += inc * 10;
+            if (this->tapTempo < Module::tempoMin) this->tapTempo = tapTempoOut = Module::tempoMin;
+            if (this->tapTempo > Module::tempoMax) this->tapTempo = tapTempoOut = Module::tempoMax;
         } else {
-			this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
+            this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
             state.div += inc;
             if (state.div < beatsDivMin)
                 state.div = beatsDivMax;
@@ -76,49 +118,54 @@ void Module::_processTapTempo(float msDelta) {
             totalTaps++;
         } else {
             this->tapTempo = (60000000.0 / ((double) delta)) * (1.0 / (double) totalTaps) + this->tapTempo * ((totalTaps - 1) / (double) totalTaps);
-            this->tapTempoOut = this->tapTempo;
+            tapTempoOut = this->tapTempo;
             totalTaps = totalTaps >= 5 ? 5 : (totalTaps + 1);
         }
 
         this->lastTapMicros = nextTapMicros;
 
-        if (this->tapTempo < Module::tapTempoMin) this->tapTempo = this->tapTempoOut = Module::tapTempoMin;
-        if (this->tapTempo > Module::tapTempoMax) this->tapTempo = this->tapTempoOut = Module::tapTempoMax;
+        if (this->tapTempo < Module::tapTempoMin) this->tapTempo = tapTempoOut = Module::tapTempoMin;
+        if (this->tapTempo > Module::tapTempoMax) this->tapTempo = tapTempoOut = Module::tapTempoMax;
     }
 
     if (nextClockSwitch != LOW) {
         this->tempoDisplayTime += msDelta;
+        if (this->tempoDisplayTime > TEMPO_DISPLAY_TIME * 2) {
+            this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
+        }
+    } else {
+        this->tempoDisplayTime = 0;
     }
 
     this->clockSwitch = nextClockSwitch;
 }
 
 void Module::_processModSwitch(float msDelta) {
-	this->modSwitch = digitalRead(modSwitchPin);
+    this->modSwitch = digitalRead(modSwitchPin);
 
-	if (this->modSwitch == LOW) {
-		this->modHoldTime += msDelta;
-	} else {
-		this->modHoldTime = 0;
-		this->canTriggerReset = true;
-	}
+    if (this->modSwitch == LOW) {
+        this->modHoldTime += msDelta;
+    } else {
+        this->modHoldTime = 0;
+        this->canTriggerReset = true;
+    }
 }
 
 void Module::_display() {
-	if (digitCounter == 4) {
+    if (digitCounter == 4) {
         digitCounter = 0;
     }
 
-    int value;
-	long displayableTempo = (long) floor(this->scaledTempo);
+    int value, decimal = 0;
+    long displayableTempo = (long) round(this->scaledTempo * 10.0f);
 
-	if (this->outs.resetPending) {
-		this->displayState = DisplayState::Pop;
-	} else if (this->clockSwitch == LOW || this->tempoDisplayTime < TEMPO_DISPLAY_TIME) {
-		this->displayState = DisplayState::Tempo;
-	} else {
-		this->displayState = DisplayState::Default;
-	}
+    if (this->outs.resetPending) {
+        this->displayState = DisplayState::Pop;
+    } else if (this->clockSwitch == LOW || this->tempoDisplayTime < TEMPO_DISPLAY_TIME) {
+        this->displayState = DisplayState::Tempo;
+    } else {
+        this->displayState = DisplayState::Default;
+    }
 
     switch (digitCounter) {
         case 0:
@@ -127,8 +174,8 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv / 10;
             } else if (this->displayState == DisplayState::Pop) {
-				value = (int) SpecialDigits::Nothing;
-			}
+                value = (int) SpecialDigits::Nothing;
+            }
             break;
         case 1:
             if (this->displayState == DisplayState::Tempo) {
@@ -136,17 +183,18 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv % 10;
             } else if (this->displayState == DisplayState::Pop) {
-				value = (int) SpecialDigits::P;
-			}
+                value = (int) SpecialDigits::P;
+            }
             break;
         case 2:
             if (this->displayState == DisplayState::Tempo) {
                 value = ((displayableTempo) / 10) % 10;
+                decimal = 1;
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats / 10;
             } else if (this->displayState == DisplayState::Pop) {
-				value = 0;
-			}
+                value = 0;
+            }
             break;
         case 3:
             if (this->displayState == DisplayState::Tempo) {
@@ -154,20 +202,26 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats % 10;
             } else if (this->displayState == DisplayState::Pop) {
-				value = (int) SpecialDigits::P;
-			}
+                value = (int) SpecialDigits::P;
+            }
             break;
     }
-    seven_segment_process(&seven_segment_sr, digitCounter, value);
+    seven_segment_process(&seven_segment_sr, digitCounter, value, decimal);
     digitCounter++;
 }
 
 Module::Module() {
     MS_init(&this->messd);
-    phasor_init(&this->clock);
+    phasor_init((phasor_t *) &clock);
 };
 
 void Module::init() {
+
+    // Enable interrupts for the clock input pin
+    cli();
+    PCICR |= 0b00000001; // Enables Port B  Pin Change Interrupts
+    PCMSK0 |= 0b00010000; // PB4
+    sei();
 
     this->eomBuffer = EOM_BUFFER_MS;
 
@@ -193,34 +247,38 @@ void Module::init() {
     pinMode(m1, OUTPUT);
     pinMode(m2, OUTPUT);
 
-	// Clock pins
-	pinMode(clockIn, INPUT);
-	pinMode(clockOut, OUTPUT);
+    // Clock pins
+    pinMode(clockIn, INPUT);
+    pinMode(clockOut, OUTPUT);
 
     for (int i = 0; i < 8; i++) {
         output_sr_val[i] = 0;
         leds_sr_val[i] = 0;
     }
+
+    // Start the timer for the accurate clock
+    ITimer1.init();
+    ITimer2.init();
+    if (ITimer1.attachInterrupt(TIMER_FREQ_HZ, TimerHandler))
+        Serial.println("Starting  ITimer OK, millis() = " + String(millis()));
+      else
+        Serial.println("Can't set ITimer. Select another freq. or timer");
 }
 
 void Module::process(float msDelta) {
 
-	// Update the internal clock
-    float phaseDelta = (this->tapTempoOut * msDelta) / (60000.0f);
-    float clockPhase = phasor_step(&this->clock, phaseDelta);
-	digitalWrite(clockOut, clockPhase < 0.5 ? HIGH : LOW);
-
 #ifdef FORCE_INTERNAL_CLOCK
-	uint8_t clockInput = clockPhase < 0.5;
+    uint8_t clockInput = clockPhase < 0.5;
 #else
-	uint8_t clockInput = digitalRead(clockIn);
+    uint8_t clockInput = digitalRead(clockIn);
 #endif
 
+    // about 1300 msec all together
     mux_process(&digital_mux);
     mux_process(&analog_mux);
     _processTapTempo(msDelta);
     _processEncoders();
-	_processModSwitch(msDelta);
+    _processModSwitch(msDelta);
 
     // Handle divide and beat switches
     if (digital_mux.outputs[DigitalMux.DIV_SWITCH] == LOW) {
@@ -236,27 +294,26 @@ void Module::process(float msDelta) {
     // and attenuverters
     float divOffset = 1.0f - (float) this->analog_mux.outputs[AnalogMux.DIVIDE_INPUT] / (float) MAX_VOLTAGE;
 #ifndef IS_POWERED_FROM_ARDUINO
-	divOffset -= 0.5f;
-	divOffset *= 2.0f;
+    divOffset -= 0.5f;
+    divOffset *= 2.0f;
 #endif
     float divAttenuvert = (float) this->analog_mux.outputs[AnalogMux.DIVIDE_ATV] / (float) MAX_VOLTAGE;
-	divAttenuvert = 2.0f * (divAttenuvert - 0.5);
+    divAttenuvert = 2.0f * (divAttenuvert - 0.5);
     float divBase = (float) (this->state.div - beatsDivMin) / (float) (beatsDivMax - beatsDivMin);
     float finalDivNormalized = fmax(0.0, fmin(1.0, divBase + divOffset * divAttenuvert));
     state.activeDiv = round(finalDivNormalized * (beatsDivMax - beatsDivMin)) + beatsDivMin;
 
     float beatsOffset = (float) this->analog_mux.outputs[AnalogMux.BEAT_INPUT] / (float) MAX_VOLTAGE;
 #ifndef IS_POWERED_FROM_ARDUINO
-	beatsOffset -= 0.5f;
-	beatsOffset *= 2.0f;
+    beatsOffset -= 0.5f;
+    beatsOffset *= 2.0f;
 #endif
-	beatsOffset = 0.0; // debug
+    beatsOffset = 0.0; // debug
     float beatsBase = (float) (this->state.beats - beatsDivMin) / (float) (beatsDivMax - beatsDivMin);
     float finalBeatsNormalized = fmax(0.0, fmin(1.0, beatsBase + beatsOffset));
     state.activeBeats = round(finalBeatsNormalized * (beatsDivMax - beatsDivMin)) + beatsDivMin;
 
-    this->ins.delta = msDelta;
-    this->ins.tempo = this->tapTempoOut;
+    this->ins.tempo = tapTempoOut;
     this->ins.beatsPerMeasure = state.activeBeats;
     this->ins.subdivisionsPerMeasure = state.activeDiv;
     this->ins.phase = 0; // unused
@@ -269,38 +326,63 @@ void Module::process(float msDelta) {
     this->ins.invert = 0; // unused
     this->ins.isRoundTrip = analog_mux.outputs[AnalogMux.ROUND_SWITCH] < (MAX_VOLTAGE >> 1);
 
-	if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS && this->canTriggerReset) {
-		this->ins.reset = true;
-		this->canTriggerReset = false;
-	} else {
-		this->ins.reset = false;
-	}
+    if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS && this->canTriggerReset) {
+        this->ins.reset = true;
+        this->canTriggerReset = false;
+    } else {
+        this->ins.reset = false;
+    }
 
     // compute wrap
     float baseTruncation = (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV] / (float) MAX_VOLTAGE;
     float truncationOffset = 1.0f - (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] / (float) MAX_VOLTAGE;
 #ifndef IS_POWERED_FROM_ARDUINO
-	truncationOffset -= 0.5f;
-	truncationOffset *= 2.0f;
+    truncationOffset -= 0.5f;
+    truncationOffset *= 2.0f;
 #endif
     baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
-	this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
+    this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
     this->ins.pulseWidth = 0.5; // debug
 
+    // Cheat and pass in the measured period time directly
+    if (this->lastRecordedHighClockTime != lastHighClockTime) {
+		if (this->lastRecordedHighClockTime == 0) {
+			measuredPeriod = lastHighClockTime;
+		} else if (lastHighClockTime > this->lastRecordedHighClockTime) {
+			measuredPeriod = lastHighClockTime - this->lastRecordedHighClockTime;
+		} else {
+			measuredPeriod = (4294967295 - this->lastRecordedHighClockTime) + lastHighClockTime; // wraparound
+		}
+		this->lastRecordedHighClockTime = lastHighClockTime;
+	}
+	this->ins.cheatedMeasuredPeriod = measuredPeriod;
+
+	// Serial.println(this->ins.cheatedMeasuredPeriod);
+
+    // Calculate offset since last process time
+    unsigned long now = micros();
+    unsigned long offset;
+    if (now > this->lastProcessTime) {
+        offset = now - this->lastProcessTime;
+    } else {
+        offset = (4294967295 - this->lastProcessTime) + now; // wraparound
+    }
+    this->lastProcessTime = now;
+    this->ins.delta = ((float) offset) / 1000.0;
     MS_process(&this->messd, &this->ins, &this->outs);
 
     if (this->outs.eom) {
         this->eomBuffer = 0;
         this->animateModulateButtonTime = 0.0f;
         this->tempoDisplayTime = 0;
-		this->state.div = this->ins.subdivisionsPerMeasure;
+        this->state.div = this->ins.subdivisionsPerMeasure;
     }
 
     // Animate the modulation button
     bool modButtonOn = false;
-	if (this->modSwitch == LOW) {
-		modButtonOn = true;
-	} else if (this->outs.modulationPending) {
+    if (this->modSwitch == LOW) {
+        modButtonOn = true;
+    } else if (this->outs.modulationPending) {
         modButtonOn = this->animateModulateButtonTime < MOD_BUTTON_STROBE_SLOW;
         this->animateModulateButtonTime += msDelta;
         if (this->animateModulateButtonTime > (2.0f * MOD_BUTTON_STROBE_SLOW)) {
@@ -319,6 +401,7 @@ void Module::process(float msDelta) {
     output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? HIGH : LOW;
     output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? HIGH : LOW;
+    // about 100 msec
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
 
     // Configure LEDs
@@ -330,12 +413,17 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = this->beat_latch ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = this->div_latch ? LOW : HIGH;
+
+    // about 100 msec
     shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
 
-	this->scaledTempo = this->outs.scaledTempo;
+    this->scaledTempo = this->outs.scaledTempo;
 
-	_display();
+    // about 400 msec
+    _display();
 
     this->eomBuffer += msDelta;
     if (this->eomBuffer > 5000000) this->eomBuffer = 5000000;
+
+    // Serial.println(accurateTime);
 };
