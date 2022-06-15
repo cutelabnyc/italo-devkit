@@ -12,41 +12,42 @@
 #define MOD_BUTTON_STROBE_SLOW (250)
 #define MOD_BUTTON_RESET_TIME_MS (2000)
 #define TEMPO_DISPLAY_TIME (2000)
+#define INPUT_CLOCK_DIV_DISPLAY_TIME (2000)
+#define DIV_BUTTON_HOLD_TIME (2000)
 
 // #define IS_POWERED_FROM_ARDUINO
-#define FORCE_INTERNAL_CLOCK
 
 class Module : public ModuleInterface {
 private:
     messd_t messd;
     messd_ins_t ins;
     messd_outs_t outs;
-	unsigned long lastProcessTime = 0;
-	unsigned long lastRecordedHighClockTime = 0;
-	unsigned long measuredPeriod = 500000;
+    unsigned long lastProcessTime = 0;
+    unsigned long lastRecordedHighClockTime = 0;
+    unsigned long measuredPeriod = 500000;
 
     // Modulation switch gets its own dedicated pin
-    int modSwitchPin = A3; // PC3
+    uint8_t modSwitchPin = A3; // PC3
 
     // Shift register pins (seven segment)
-    int dataPinSR = 11;  // PB3
-    int latchPinSR = 9;  // PB1
-    int clockPinSR = 10; // PB2
+    uint8_t dataPinSR = 11;  // PB3
+    uint8_t latchPinSR = 9;  // PB1
+    uint8_t clockPinSR = 10; // PB2
 
     // Output shift register pins
-    int dataPinOuts = 7; // PD7
-    int latchPinOuts = 6; // PD6
-    int clockPinOuts = 5; // PD5
+    uint8_t dataPinOuts = 7; // PD7
+    uint8_t latchPinOuts = 6; // PD6
+    uint8_t clockPinOuts = 5; // PD5
 
     // LED shift register pins
-    int dataPinLEDs = 8; // PB0
-    int latchPinLEDs = A4; // PC4
-    int clockPinLEDs = A5; // PC5
+    uint8_t dataPinLEDs = 8; // PB0
+    uint8_t latchPinLEDs = A4; // PC4
+    uint8_t clockPinLEDs = A5; // PC5
 
     // Mux controller pins
-    int m0 = 4; // PD4
-    int m1 = 3; // PD3
-    int m2 = 2; // PD2
+    uint8_t m0 = 4; // PD4
+    uint8_t m1 = 3; // PD3
+    uint8_t m2 = 2; // PD2
 
     // consts
     static const int beatsDivMin = 2;
@@ -55,42 +56,47 @@ private:
     static const int tempoMax = 500;
     static const int tapTempoMin = 40;
     static const int tapTempoMax = 280;
+    static const int inputClockDivideMin = 1;
+    static const int inputClockDivideMax = 9;
 
     int analogMuxIn = A0;  // PC0
     int digitalMuxIn = A2; // PC2
 
-    int digitCounter = 0;
+    uint8_t digitCounter = 0;
 
     // Storage for the encoders
-    int divEncA = 0;
-    int divEncB = 0;
-    int encStateDiv = 0;
-    int beatsEncA = 0;
-    int beatsEncB = 0;
-    int encStateBeats = 0;
+    uint8_t divEncA = 0;
+    uint8_t divEncB = 0;
+    uint8_t encStateDiv = 0;
+    uint8_t beatsEncA = 0;
+    uint8_t beatsEncB = 0;
+    uint8_t encStateBeats = 0;
 
     // Different display types
     enum class DisplayState {
         Default = 0,
         Tempo,
-        Pop
+        Pop,
+        InputClockDivide
     };
     DisplayState displayState = DisplayState::Default;
 
     // Storage for the clock switch
-    int clockSwitch = LOW;
+    uint8_t clockSwitch = LOW;
     float tapTempo = 131.0;
-	// float tapTempoOut = 131.0;
     float scaledTempo = 120.0f;
     unsigned long lastTapMicros = 0;
     unsigned char totalTaps = 0;
     int tempoDisplayTime = TEMPO_DISPLAY_TIME;
 
     // Storage for the modulation switch
-    int modSwitch = HIGH; // active low
-    int canTriggerReset = 1;
+    uint8_t modSwitch = HIGH; // active low
+    uint8_t canTriggerReset = 1;
     float eomBuffer = 0.0f;
     float modHoldTime = 0.0;
+
+    float divHoldTime = 0.0;
+    int inputClockDivDisplayTime = INPUT_CLOCK_DIV_DISPLAY_TIME;
 
     // Storage for animations on the modulate button
     bool animateModulateButton = false;
@@ -98,10 +104,6 @@ private:
 
     uint16_t analogMuxOuts[8];
     uint16_t digitalMuxOuts[8];
-
-    // Storage for the pots
-    int pot0 = 0;
-    int pot1 = 0;
 
     // Storage for output shift register
     uint8_t output_sr_val[8];
@@ -130,10 +132,11 @@ private:
     };
 
     // Storage for the latch switches
-    int beat_latch = 0;
-    int div_latch = 0;
-    int beat_switch_state_prev = 0;
-    int div_switch_state_prev = 0;
+    uint8_t beat_latch = 0;
+    uint8_t div_latch = 0;
+    uint8_t initial_div_latch = 0;
+    uint8_t beat_switch_state_prev = 0;
+    uint8_t div_switch_state_prev = 0;
 
     mux_t analog_mux = {{m0, m1, m2}, analogMuxIn, true, analogMuxOuts, 8};
     mux_t digital_mux = {{m0, m1, m2}, digitalMuxIn, false, digitalMuxOuts, 8};
@@ -142,6 +145,7 @@ private:
     void _processEncoders();
     void _processTapTempo(float msDelta);
     void _processModSwitch(float msDelta);
+    void _processBeatDivSwitches(float msDelta);
     void _display();
 
 public:
