@@ -9,36 +9,36 @@
 // Internal clock
 volatile unsigned long accurateTime = 0;
 volatile phasor_t clock;
-volatile float tapTempoOut = 120.0;
-volatile float clockPhase = 0.0f;
 int clockIn = 12; // PB4
 int clockOut = A1; // PC1
 volatile int a = 0;
 volatile uint8_t lastClockVal = LOW;
 
+volatile uint8_t lastInternalClockState = LOW;
+volatile unsigned long microsPhaseDelta = 0;
+volatile unsigned long microsPeriod = 1000000;
+volatile unsigned long microsPeriodHalf = 500000;
+volatile unsigned long microsPhase = 0;
+
 // More accurate input clock high detection
 volatile unsigned long lastHighClockTime = 0;
 
-#define TIMER_FREQ_HZ        5000.0f
+#define TIMER_FREQ_HZ        10000.0f
 static void TimerHandler()
 {
-    unsigned long nextAccurateMicros = micros();
-    unsigned long delta;
-    if (nextAccurateMicros < accurateTime) {
-        delta = (4294967295 - accurateTime) + nextAccurateMicros;
-    } else {
-        delta = nextAccurateMicros - accurateTime;
-    }
-    accurateTime = nextAccurateMicros;
+	microsPhase += microsPhaseDelta;
+	if (microsPhase > microsPeriod)
+		microsPhase %= microsPeriod;
 
-    // Update the internal clock
-    float phaseDelta = (tapTempoOut * ((float) delta) / (60000000.0f));
-    clockPhase = phasor_step((phasor_t *) &clock, phaseDelta);
-    digitalWrite(clockOut, clockPhase < 0.5 ? HIGH : LOW);
+	uint8_t nextPhase = microsPhase < microsPeriodHalf;
+	if (nextPhase != lastInternalClockState) {
+		digitalWrite(clockOut, nextPhase);
+		lastInternalClockState = nextPhase;
+	}
 }
 
 ISR (PCINT0_vect) {
-    if (digitalRead(clockIn) == HIGH)
+    if (PINB & 0b00010000)
         lastHighClockTime = micros();
 }
 
@@ -257,9 +257,11 @@ void Module::init() {
     }
 
     // Start the timer for the accurate clock
+	// float timerFreqHz = 60.0f / this->tapTempoOut;
+	microsPhaseDelta = (unsigned long) (1000000.0 / TIMER_FREQ_HZ);
     ITimer1.init();
     ITimer2.init();
-    if (ITimer1.attachInterrupt(TIMER_FREQ_HZ, TimerHandler))
+    if (ITimer1.attachInterrupt(timerFreqHz, TimerHandler))
         Serial.println("Starting  ITimer OK, millis() = " + String(millis()));
       else
         Serial.println("Can't set ITimer. Select another freq. or timer");
@@ -267,11 +269,10 @@ void Module::init() {
 
 void Module::process(float msDelta) {
 
-#ifdef FORCE_INTERNAL_CLOCK
-    uint8_t clockInput = clockPhase < 0.5;
-#else
     uint8_t clockInput = digitalRead(clockIn);
-#endif
+
+	microsPeriod = (long) (60000000.0 / this->tapTempoOut);
+	microsPeriodHalf = microsPeriod >> 1;
 
     // about 1300 msec all together
     mux_process(&digital_mux);
@@ -358,6 +359,7 @@ void Module::process(float msDelta) {
 	this->ins.cheatedMeasuredPeriod = measuredPeriod;
 
 	// Serial.println(this->ins.cheatedMeasuredPeriod);
+	// Serial.println(measuredPeriod);
 
     // Calculate offset since last process time
     unsigned long now = micros();
@@ -408,7 +410,7 @@ void Module::process(float msDelta) {
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
     leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_LED_BUFFER_MS ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = clockPhase < 0.5 ? LOW : HIGH; // clockInput == HIGH ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = clockInput == HIGH ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = this->beat_latch ? LOW : HIGH;

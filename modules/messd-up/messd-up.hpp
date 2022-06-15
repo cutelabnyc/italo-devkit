@@ -79,7 +79,8 @@ private:
 
     // Storage for the clock switch
     int clockSwitch = LOW;
-    float tapTempo = 120.0;
+    float tapTempo = 131.0;
+	float tapTempoOut = 131.0;
     float scaledTempo = 120.0f;
     unsigned long lastTapMicros = 0;
     unsigned char totalTaps = 0;
