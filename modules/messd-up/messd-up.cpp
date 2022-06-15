@@ -7,33 +7,33 @@
 
 // Got to be globals to work with the arduino timer. TODO: Figure out how to do this on other platforms
 // Internal clock
-volatile unsigned long accurateTime = 0;
-volatile phasor_t clock;
 int clockIn = 12; // PB4
 int clockOut = A1; // PC1
-volatile int a = 0;
-volatile uint8_t lastClockVal = LOW;
 
 volatile uint8_t lastInternalClockState = LOW;
-volatile unsigned long microsPhaseDelta = 0;
-volatile unsigned long microsPeriod = 1000000;
-volatile unsigned long microsPeriodHalf = 500000;
-volatile unsigned long microsPhase = 0;
 
 // More accurate input clock high detection
 volatile unsigned long lastHighClockTime = 0;
+uint16_t clockPhaseCounter = 0;
+
+volatile float tapTempoOut = 131.0;
+float lastTapTempoOut = 131.0;
 
 #define TIMER_FREQ_HZ        10000.0f
 static void TimerHandler()
 {
-	microsPhase += microsPhaseDelta;
-	if (microsPhase > microsPeriod)
-		microsPhase %= microsPeriod;
+	clockPhaseCounter++;
 
-	uint8_t nextPhase = microsPhase < microsPeriodHalf;
-	if (nextPhase != lastInternalClockState) {
-		digitalWrite(clockOut, nextPhase);
-		lastInternalClockState = nextPhase;
+	if (clockPhaseCounter >= 100) {
+		clockPhaseCounter = 0;
+		lastInternalClockState = !lastInternalClockState;
+		digitalWrite(clockOut, lastInternalClockState);
+	}
+
+	if (lastTapTempoOut != tapTempoOut) {
+		float timerFreqHz = tapTempoOut * 100.0f / 30.0f; // double speed because it alternates at 2z Hz
+		lastTapTempoOut = tapTempoOut;
+		ITimer1.setFrequency(timerFreqHz, TimerHandler);
 	}
 }
 
@@ -212,7 +212,6 @@ void Module::_display() {
 
 Module::Module() {
     MS_init(&this->messd);
-    phasor_init((phasor_t *) &clock);
 };
 
 void Module::init() {
@@ -257,22 +256,29 @@ void Module::init() {
     }
 
     // Start the timer for the accurate clock
-	// float timerFreqHz = 60.0f / this->tapTempoOut;
-	microsPhaseDelta = (unsigned long) (1000000.0 / TIMER_FREQ_HZ);
+    float timerFreqHz = tapTempoOut * 100.0f / 30.0f; // double speed because it alternates at 2z Hz
+
     ITimer1.init();
     ITimer2.init();
-    if (ITimer1.attachInterrupt(timerFreqHz, TimerHandler))
+    if (ITimer1.setFrequency(timerFreqHz, TimerHandler))
         Serial.println("Starting  ITimer OK, millis() = " + String(millis()));
-      else
+    else
         Serial.println("Can't set ITimer. Select another freq. or timer");
 }
+
+// static void updateTimer1Frequency(float frequency)
+// {
+//     uint32_t _OCRValueToUse = min(MAX_COUNT_16BIT, _OCRValueRemaining);
+//     OCR1A = _OCRValueToUse;
+//     _OCRValueRemaining -= _OCRValueToUse;
+// }
 
 void Module::process(float msDelta) {
 
     uint8_t clockInput = digitalRead(clockIn);
 
-	microsPeriod = (long) (60000000.0 / this->tapTempoOut);
-	microsPeriodHalf = microsPeriod >> 1;
+    // Serial.println(tapTempoOut);
+    // ITimer1.setFrequency(tapTempoOut / 30.0f, TimerHandler);
 
     // about 1300 msec all together
     mux_process(&digital_mux);
@@ -347,19 +353,19 @@ void Module::process(float msDelta) {
 
     // Cheat and pass in the measured period time directly
     if (this->lastRecordedHighClockTime != lastHighClockTime) {
-		if (this->lastRecordedHighClockTime == 0) {
-			measuredPeriod = lastHighClockTime;
-		} else if (lastHighClockTime > this->lastRecordedHighClockTime) {
-			measuredPeriod = lastHighClockTime - this->lastRecordedHighClockTime;
-		} else {
-			measuredPeriod = (4294967295 - this->lastRecordedHighClockTime) + lastHighClockTime; // wraparound
-		}
-		this->lastRecordedHighClockTime = lastHighClockTime;
-	}
-	this->ins.cheatedMeasuredPeriod = measuredPeriod;
+        if (this->lastRecordedHighClockTime == 0) {
+            measuredPeriod = lastHighClockTime;
+        } else if (lastHighClockTime > this->lastRecordedHighClockTime) {
+            measuredPeriod = lastHighClockTime - this->lastRecordedHighClockTime;
+        } else {
+            measuredPeriod = (4294967295 - this->lastRecordedHighClockTime) + lastHighClockTime; // wraparound
+        }
+        this->lastRecordedHighClockTime = lastHighClockTime;
+    }
+    this->ins.cheatedMeasuredPeriod = measuredPeriod;
 
-	// Serial.println(this->ins.cheatedMeasuredPeriod);
-	// Serial.println(measuredPeriod);
+    // Serial.println(this->ins.cheatedMeasuredPeriod);
+    // Serial.println(measuredPeriod);
 
     // Calculate offset since last process time
     unsigned long now = micros();
@@ -426,6 +432,4 @@ void Module::process(float msDelta) {
 
     this->eomBuffer += msDelta;
     if (this->eomBuffer > 5000000) this->eomBuffer = 5000000;
-
-    // Serial.println(accurateTime);
 };
