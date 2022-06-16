@@ -18,6 +18,10 @@ volatile uint8_t inputClockCounter = 0;
 volatile uint8_t inputClockDivider = 1;
 volatile uint8_t lastClock = LOW;
 
+// Beat input reset
+volatile uint8_t beatInputResetMode = 0;
+
+// Tempo
 volatile float tapTempoOut = 131.0;
 float lastTapTempoOut = 131.0;
 
@@ -42,17 +46,17 @@ static void TimerHandler()
 
 ISR (PCINT0_vect) {
     if (PINB & 0b00010000) {
-		if (inputClockCounter == 0) {
-        	lastHighClockTime = micros();
-			lastClock = HIGH;
-		} else {
-			lastClock = LOW;
-		}
+        if (inputClockCounter == 0) {
+            lastHighClockTime = micros();
+            lastClock = HIGH;
+        } else {
+            lastClock = LOW;
+        }
 
-		inputClockCounter = (inputClockCounter + 1) % inputClockDivider;
-	} else {
-		lastClock = LOW;
-	}
+        inputClockCounter = (inputClockCounter + 1) % inputClockDivider;
+    } else {
+        lastClock = LOW;
+    }
 }
 
 void Module::_scaleValues() {
@@ -81,7 +85,7 @@ void Module::_processEncoders() {
             tapTempoOut += inc;
             if (this->tapTempo < Module::tempoMin) this->tapTempo = tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = tapTempoOut = Module::tempoMax;
-        } else if (inputClockDivDisplayTime < INPUT_CLOCK_DIV_DISPLAY_TIME) {
+        } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
             // No-op, the beat encoder doesn't do anything here
         } else {
             this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
@@ -102,7 +106,7 @@ void Module::_processEncoders() {
             tapTempoOut += inc * 10;
             if (this->tapTempo < Module::tempoMin) this->tapTempo = tapTempoOut = Module::tempoMin;
             if (this->tapTempo > Module::tempoMax) this->tapTempo = tapTempoOut = Module::tempoMax;
-        } else if (inputClockDivDisplayTime < INPUT_CLOCK_DIV_DISPLAY_TIME) {
+        } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
             inputClockDivider += inc;
             this->inputClockDivDisplayTime = 0.0f;
             if (inputClockDivider < Module::inputClockDivideMin) inputClockDivider = Module::inputClockDivideMin;
@@ -156,7 +160,7 @@ void Module::_processTapTempo(float msDelta) {
         }
     } else {
         this->tempoDisplayTime = 0;
-        this->inputClockDivDisplayTime = INPUT_CLOCK_DIV_DISPLAY_TIME;
+        this->inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
     }
 
     this->clockSwitch = nextClockSwitch;
@@ -174,7 +178,7 @@ void Module::_processModSwitch(float msDelta) {
 }
 
 void Module::_processBeatDivSwitches(float msDelta) {
-    // Serial.println(divHoldTime);
+    // div switch
     if (digital_mux.outputs[DigitalMux.DIV_SWITCH] == LOW) {
         if (div_switch_state_prev == HIGH) {
             initial_div_latch = div_latch;
@@ -188,17 +192,34 @@ void Module::_processBeatDivSwitches(float msDelta) {
         }
     } else {
         inputClockDivDisplayTime += msDelta;
-        if (inputClockDivDisplayTime > INPUT_CLOCK_DIV_DISPLAY_TIME + 1)
-            inputClockDivDisplayTime = INPUT_CLOCK_DIV_DISPLAY_TIME + 1;
+        if (inputClockDivDisplayTime > OTHER_DISPLAY_TIME + 1)
+            inputClockDivDisplayTime = OTHER_DISPLAY_TIME + 1;
         divHoldTime = 0.0f;
     }
     div_switch_state_prev = digital_mux.outputs[DigitalMux.DIV_SWITCH];
+
+    // beat switch
     if (digital_mux.outputs[DigitalMux.BEAT_SWITCH] == LOW) {
-        if (beat_switch_state_prev == HIGH) beat_latch = !beat_latch;
+        if (beat_switch_state_prev == HIGH) {
+            initial_beat_latch = beat_latch;
+            beat_latch = !beat_latch;
+        } else {
+            beatHoldTime += msDelta;
+            if (canSwtichBeatInputModes && beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
+                beat_latch = initial_beat_latch;
+                beatInputResetMode = !beatInputResetMode;
+                canSwtichBeatInputModes = false;
+                beatModeDisplayTime = 0.0f;
+            }
+        }
+    } else {
+        beatModeDisplayTime += msDelta;
+        if (beatModeDisplayTime > OTHER_DISPLAY_TIME + 1)
+            beatModeDisplayTime = OTHER_DISPLAY_TIME + 1;
+        beatHoldTime = 0.0f;
+        canSwtichBeatInputModes = true;
     }
     beat_switch_state_prev = digital_mux.outputs[DigitalMux.BEAT_SWITCH];
-
-
 }
 
 void Module::_display() {
@@ -215,8 +236,10 @@ void Module::_display() {
         this->displayState = DisplayState::Pop;
     } else if (this->clockSwitch == LOW || this->tempoDisplayTime < TEMPO_DISPLAY_TIME) {
         this->displayState = DisplayState::Tempo;
-    } else if (this->inputClockDivDisplayTime < INPUT_CLOCK_DIV_DISPLAY_TIME) {
+    } else if (this->inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
         this->displayState = DisplayState::InputClockDivide;
+    } else if (this->beatModeDisplayTime < OTHER_DISPLAY_TIME) {
+        this->displayState = DisplayState::BeatMode;
     } else {
         this->displayState = DisplayState::Default;
         colon = true;
@@ -229,9 +252,11 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv / 10;
             } else if (this->displayState == DisplayState::Pop) {
-                value = (int) 0;
+                value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
                 value = (int) SpecialDigits::Nothing;
+            } else if (this->displayState == DisplayState::BeatMode) {
+                value = (int) (beatInputResetMode ? SpecialDigits::Nothing : SpecialDigits::B);
             }
             break;
         case 1:
@@ -240,9 +265,11 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv % 10;
             } else if (this->displayState == DisplayState::Pop) {
-                value = (int) SpecialDigits::R;
+                value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
                 value = (int) SpecialDigits::Nothing;
+            }else if (this->displayState == DisplayState::BeatMode) {
+                value = (int) (beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
             }
             break;
         case 2:
@@ -252,10 +279,12 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats / 10;
             } else if (this->displayState == DisplayState::Pop) {
-                value = 1;
+                value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
                 value = inputClockDivider / 10;
                 if (value == 0) value = (int) SpecialDigits::Nothing;
+            }else if (this->displayState == DisplayState::BeatMode) {
+                value = (beatInputResetMode ? 5 : (int) SpecialDigits::A);
             }
             break;
         case 3:
@@ -264,9 +293,11 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats % 10;
             } else if (this->displayState == DisplayState::Pop) {
-                value = (int) SpecialDigits::G;
+                value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
                 value = inputClockDivider % 10;
+            } else if (this->displayState == DisplayState::BeatMode) {
+                value = (int) SpecialDigits::T;
             }
             break;
     }
@@ -282,7 +313,7 @@ void Module::init() {
 
     // Enable interrupts for the clock input pin
     cli();
-    PCICR |= 0b00000001; // Enables Port B  Pin Change Interrupts
+    PCICR |= 0b00000011; // Enables Port B Pin Change Interrupts
     PCMSK0 |= 0b00010000; // PB4
     sei();
 
@@ -336,9 +367,20 @@ void Module::process(float msDelta) {
     _processEncoders();
 
     mux_process(&analog_mux);
+
     _processTapTempo(msDelta);
     _processModSwitch(msDelta);
     _processBeatDivSwitches(msDelta);
+
+    // Remember to switch this back to beat input when that input is working
+    uint8_t beatInput = this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] < 500 ? 1 : 0;
+	uint8_t didReset = 0;
+	this->ins.resetBeatCount = 0;
+    if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
+        this->ins.resetBeatCount = 1;
+		didReset = 1;
+    }
+    this->lastBeatInputValue = beatInput;
 
     // Compute the final value for subdivisions and beats based on modulation inputs
     // and attenuverters
@@ -393,6 +435,12 @@ void Module::process(float msDelta) {
 #endif
     baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
     this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
+
+	// Remember to get rid of this
+	if (beatInputResetMode) {
+		this->ins.truncation = -1.0;
+	}
+
     this->ins.pulseWidth = 0.5; // debug
 
     // Cheat and pass in the measured period time directly
@@ -426,6 +474,11 @@ void Module::process(float msDelta) {
     _processEncoders();
 
     MS_process(&this->messd, &this->ins, &this->outs);
+
+	if (didReset) {
+		Serial.println(messd.beatCounter);
+		Serial.println(messd.scaledBeatCounter);
+	}
 
     if (this->outs.eom) {
         this->eomBuffer = 0;
@@ -478,8 +531,6 @@ void Module::process(float msDelta) {
     shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
 
     this->scaledTempo = this->outs.scaledTempo;
-
-
 
     // about 400 msec
     _display();

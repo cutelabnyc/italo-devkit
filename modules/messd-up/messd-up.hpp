@@ -12,8 +12,9 @@
 #define MOD_BUTTON_STROBE_SLOW (250)
 #define MOD_BUTTON_RESET_TIME_MS (2000)
 #define TEMPO_DISPLAY_TIME (2000)
-#define INPUT_CLOCK_DIV_DISPLAY_TIME (2000)
+#define OTHER_DISPLAY_TIME (2000)
 #define DIV_BUTTON_HOLD_TIME (2000)
+#define BEAT_BUTTON_HOLD_TIME (2000)
 
 // #define IS_POWERED_FROM_ARDUINO
 
@@ -77,7 +78,8 @@ private:
         Default = 0,
         Tempo,
         Pop,
-        InputClockDivide
+        InputClockDivide,
+		BeatMode
     };
     DisplayState displayState = DisplayState::Default;
 
@@ -87,7 +89,7 @@ private:
     float scaledTempo = 120.0f;
     unsigned long lastTapMicros = 0;
     unsigned char totalTaps = 0;
-    int tempoDisplayTime = TEMPO_DISPLAY_TIME;
+    uint16_t tempoDisplayTime = TEMPO_DISPLAY_TIME;
 
     // Storage for the modulation switch
     uint8_t modSwitch = HIGH; // active low
@@ -95,8 +97,14 @@ private:
     float eomBuffer = 0.0f;
     float modHoldTime = 0.0;
 
+	// Holding down the div encoder switch
     float divHoldTime = 0.0;
-    int inputClockDivDisplayTime = INPUT_CLOCK_DIV_DISPLAY_TIME;
+    uint16_t inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
+
+	// Holding down the beat encoder switch
+	float beatHoldTime = 0.0;
+	uint16_t beatModeDisplayTime = OTHER_DISPLAY_TIME;
+	uint8_t lastBeatInputValue = 0;
 
     // Storage for animations on the modulate button
     bool animateModulateButton = false;
@@ -135,8 +143,10 @@ private:
     uint8_t beat_latch = 0;
     uint8_t div_latch = 0;
     uint8_t initial_div_latch = 0;
+	uint8_t initial_beat_latch = 0;
     uint8_t beat_switch_state_prev = 0;
     uint8_t div_switch_state_prev = 0;
+	uint8_t canSwtichBeatInputModes = 1;
 
     mux_t analog_mux = {{m0, m1, m2}, analogMuxIn, true, analogMuxOuts, 8};
     mux_t digital_mux = {{m0, m1, m2}, digitalMuxIn, false, digitalMuxOuts, 8};
