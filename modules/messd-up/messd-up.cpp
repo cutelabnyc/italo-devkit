@@ -431,6 +431,12 @@ void Module::process(float msDelta) {
     // compute wrap
     float baseTruncation = (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV] / (float) MAX_VOLTAGE;
     float truncationOffset = 1.0f - (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] / (float) MAX_VOLTAGE;
+
+	// Remember to remove this when the beat input is working again
+	if (beatInputResetMode) {
+		truncationOffset = 0.5; // disable the truncation functionality of this input when in beat reset mode
+	}
+
 #ifndef IS_POWERED_FROM_ARDUINO
     truncationOffset -= 0.5f;
     truncationOffset *= 2.0f;
