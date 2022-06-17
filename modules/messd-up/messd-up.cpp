@@ -238,6 +238,7 @@ void Module::_display() {
         this->displayState = DisplayState::Tempo;
     } else if (this->inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
         this->displayState = DisplayState::InputClockDivide;
+		colon = true;
     } else if (this->beatModeDisplayTime < OTHER_DISPLAY_TIME) {
         this->displayState = DisplayState::BeatMode;
     } else {
@@ -267,7 +268,7 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Pop) {
                 value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
-                value = (int) SpecialDigits::Nothing;
+                value = (int) 1;
             }else if (this->displayState == DisplayState::BeatMode) {
                 value = (int) (beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
             }
@@ -372,13 +373,14 @@ void Module::process(float msDelta) {
     _processModSwitch(msDelta);
     _processBeatDivSwitches(msDelta);
 
-    // Remember to switch this back to beat input when that input is working
-    uint8_t beatInput = this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] < 500 ? 1 : 0;
-	uint8_t didReset = 0;
-	this->ins.resetBeatCount = 0;
+	// Remember to change this back when the beat input is working
+	// Serial.println(this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT]);
+    uint8_t beatInput = this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] < 475 ? 1 : 0;
+    uint8_t didReset = 0;
+    this->ins.resetBeatCount = 0;
     if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
         this->ins.resetBeatCount = 1;
-		didReset = 1;
+        didReset = 1;
     }
     this->lastBeatInputValue = beatInput;
 
@@ -436,11 +438,6 @@ void Module::process(float msDelta) {
     baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
     this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
 
-	// Remember to get rid of this
-	if (beatInputResetMode) {
-		this->ins.truncation = -1.0;
-	}
-
     this->ins.pulseWidth = 0.5; // debug
 
     // Cheat and pass in the measured period time directly
@@ -474,11 +471,6 @@ void Module::process(float msDelta) {
     _processEncoders();
 
     MS_process(&this->messd, &this->ins, &this->outs);
-
-	if (didReset) {
-		Serial.println(messd.beatCounter);
-		Serial.println(messd.scaledBeatCounter);
-	}
 
     if (this->outs.eom) {
         this->eomBuffer = 0;
