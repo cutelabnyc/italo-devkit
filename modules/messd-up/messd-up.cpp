@@ -238,9 +238,11 @@ void Module::_display() {
         this->displayState = DisplayState::Tempo;
     } else if (this->inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
         this->displayState = DisplayState::InputClockDivide;
-		colon = true;
+        colon = true;
     } else if (this->beatModeDisplayTime < OTHER_DISPLAY_TIME) {
         this->displayState = DisplayState::BeatMode;
+    } else if (this->countdownDisplayTime < COUNTDOWN_DISPLAY_TIME) {
+        this->displayState = DisplayState::Countdown;
     } else {
         this->displayState = DisplayState::Default;
         colon = true;
@@ -258,6 +260,9 @@ void Module::_display() {
                 value = (int) SpecialDigits::Nothing;
             } else if (this->displayState == DisplayState::BeatMode) {
                 value = (int) (beatInputResetMode ? SpecialDigits::Nothing : SpecialDigits::B);
+            } else if (this->displayState == DisplayState::Countdown) {
+                value = countdownSampleAndHold / 1000;
+                if (value == 0) value = (int) SpecialDigits::Nothing;
             }
             break;
         case 1:
@@ -269,8 +274,11 @@ void Module::_display() {
                 value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
                 value = (int) 1;
-            }else if (this->displayState == DisplayState::BeatMode) {
+            } else if (this->displayState == DisplayState::BeatMode) {
                 value = (int) (beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
+            } else if (this->displayState == DisplayState::Countdown) {
+                value = countdownSampleAndHold / 100;
+                if (value == 0) value = (int) SpecialDigits::Nothing;
             }
             break;
         case 2:
@@ -284,8 +292,11 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::InputClockDivide) {
                 value = inputClockDivider / 10;
                 if (value == 0) value = (int) SpecialDigits::Nothing;
-            }else if (this->displayState == DisplayState::BeatMode) {
+            } else if (this->displayState == DisplayState::BeatMode) {
                 value = (beatInputResetMode ? 5 : (int) SpecialDigits::A);
+            } else if (this->displayState == DisplayState::Countdown) {
+                value = countdownSampleAndHold / 10;
+                if (value == 0) value = (int) SpecialDigits::Nothing;
             }
             break;
         case 3:
@@ -299,6 +310,8 @@ void Module::_display() {
                 value = inputClockDivider % 10;
             } else if (this->displayState == DisplayState::BeatMode) {
                 value = (int) SpecialDigits::T;
+            } else if (this->displayState == DisplayState::Countdown) {
+                value = countdownSampleAndHold % 10;
             }
             break;
     }
@@ -373,8 +386,8 @@ void Module::process(float msDelta) {
     _processModSwitch(msDelta);
     _processBeatDivSwitches(msDelta);
 
-	// Remember to change this back when the beat input is working
-	// Serial.println(this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT]);
+    // Remember to change this back when the beat input is working
+    // Serial.println(this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT]);
     uint8_t beatInput = this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] < 475 ? 1 : 0;
     uint8_t didReset = 0;
     this->ins.resetBeatCount = 0;
@@ -432,10 +445,10 @@ void Module::process(float msDelta) {
     float baseTruncation = (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV] / (float) MAX_VOLTAGE;
     float truncationOffset = 1.0f - (float) this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] / (float) MAX_VOLTAGE;
 
-	// Remember to remove this when the beat input is working again
-	if (beatInputResetMode) {
-		truncationOffset = 0.5; // disable the truncation functionality of this input when in beat reset mode
-	}
+    // Remember to remove this when the beat input is working again
+    if (beatInputResetMode) {
+        truncationOffset = 0.5; // disable the truncation functionality of this input when in beat reset mode
+    }
 
 #ifndef IS_POWERED_FROM_ARDUINO
     truncationOffset -= 0.5f;
@@ -478,12 +491,38 @@ void Module::process(float msDelta) {
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
+    static int lastClock = false;
+    if (!lastClock && this->ins.ext_clock) {
+        Serial.print(this->messd.countdown);
+        Serial.print("\t");
+        Serial.print(this->messd.rootBeatCounter);
+        Serial.print("\t");
+        Serial.println(this->messd.scaledBeatCounter);
+    }
+    lastClock = this->ins.ext_clock;
+
+    if (!this->lastDownbeat && this->outs.downbeat) {
+        if (this->messd.modulationPending) {
+            this->countdownDisplayTime = 0;
+			this->countdownSampleAndHold = this->outs.countdown;
+        }
+    }
+    this->countdownDisplayTime += msDelta;
+    this->lastDownbeat = this->outs.downbeat;
+
     if (this->outs.eom) {
         this->eomBuffer = 0;
         this->animateModulateButtonTime = 0.0f;
         this->tempoDisplayTime = 0;
 
         this->state.div = this->ins.subdivisionsPerMeasure;
+
+        Serial.println(this->messd.rootClockPhase);
+        Serial.println(this->messd.scaledClockPhase);
+        Serial.println(this->messd.rootClockPhaseOffset);
+        Serial.println(this->messd.rootBeatCounter);
+        Serial.println(this->messd.scaledBeatCounter);
+        Serial.println();
     }
 
     // Animate the modulation button
@@ -507,11 +546,11 @@ void Module::process(float msDelta) {
     output_sr_val[(uint8_t) OutputNames::Nothing] = HIGH;
     output_sr_val[(uint8_t) OutputNames::TruncateLED] = this->outs.truncate ? LOW : HIGH;
     output_sr_val[(uint8_t) OutputNames::DivLED] = this->outs.subdivision ? LOW : HIGH;
-    output_sr_val[(uint8_t) OutputNames::EoMOutput] = this->eomBuffer < EOM_BUFFER_MS ? HIGH : LOW;
-    output_sr_val[(uint8_t) OutputNames::TruncateOutput] = this->outs.truncate ? HIGH : LOW;
-    output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? HIGH : LOW;
-    output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? HIGH : LOW;
-    output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? HIGH : LOW;
+    output_sr_val[(uint8_t) OutputNames::EoMOutput] = this->eomBuffer < EOM_BUFFER_MS ? LOW : HIGH;
+    output_sr_val[(uint8_t) OutputNames::TruncateOutput] = this->outs.truncate ? LOW : HIGH;
+    output_sr_val[(uint8_t) OutputNames::DivOutput] = this->outs.subdivision ? LOW : HIGH;
+    output_sr_val[(uint8_t) OutputNames::DownbeatOutput] = this->outs.downbeat ? LOW : HIGH;
+    output_sr_val[(uint8_t) OutputNames::BeatOutput] = this->outs.beat ? LOW : HIGH;
     // about 100 msec
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
 

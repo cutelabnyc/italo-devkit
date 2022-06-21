@@ -15,6 +15,7 @@
 #define OTHER_DISPLAY_TIME (2000)
 #define DIV_BUTTON_HOLD_TIME (2000)
 #define BEAT_BUTTON_HOLD_TIME (2000)
+#define COUNTDOWN_DISPLAY_TIME (500)
 
 // #define IS_POWERED_FROM_ARDUINO
 
@@ -79,7 +80,8 @@ private:
         Tempo,
         Pop,
         InputClockDivide,
-		BeatMode
+		BeatMode,
+		Countdown
     };
     DisplayState displayState = DisplayState::Default;
 
@@ -106,6 +108,11 @@ private:
 	uint16_t beatModeDisplayTime = OTHER_DISPLAY_TIME;
 	uint8_t lastBeatInputValue = 0;
 
+	// Countdown display
+	uint8_t lastDownbeat = false;
+	uint16_t countdownDisplayTime = COUNTDOWN_DISPLAY_TIME;
+	uint16_t countdownSampleAndHold = 0;
+
     // Storage for animations on the modulate button
     bool animateModulateButton = false;
     float animateModulateButtonTime = 0.0f;
@@ -119,11 +126,11 @@ private:
         Nothing = 0,
         TruncateLED,
         DivLED,
-        EoMOutput,
+		EoMOutput,
         TruncateOutput,
         DivOutput,
         DownbeatOutput,
-        BeatOutput
+		BeatOutput
     };
 
     // Storage for LED shift register
