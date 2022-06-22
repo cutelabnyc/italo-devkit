@@ -491,23 +491,24 @@ void Module::process(float msDelta) {
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
-    static int lastClock = false;
-    if (!lastClock && this->ins.ext_clock) {
-        Serial.print(this->messd.countdown);
-        Serial.print("\t");
-        Serial.print(this->messd.rootBeatCounter);
-        Serial.print("\t");
-        Serial.println(this->messd.scaledBeatCounter);
-    }
-    lastClock = this->ins.ext_clock;
+    // static int lastClock = false;
+    // if (!lastClock && this->outs.beat) {
+    //     Serial.print(this->outs.beat);
+    //     Serial.print("\t");
+    //     Serial.print(this->messd.rootBeatCounter);
+    //     Serial.print("\t");
+    //     Serial.println(this->messd.scaledBeatCounter);
+    // }
+    // lastClock = this->outs.beat;
 
     if (!this->lastDownbeat && this->outs.downbeat) {
-        if (this->messd.modulationPending) {
+        if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
             this->countdownDisplayTime = 0;
 			this->countdownSampleAndHold = this->outs.countdown;
         }
     }
     this->countdownDisplayTime += msDelta;
+	this->countdownDisplayTime = min(this->countdownDisplayTime, COUNTDOWN_DISPLAY_TIME);
     this->lastDownbeat = this->outs.downbeat;
 
     if (this->outs.eom) {
@@ -522,7 +523,15 @@ void Module::process(float msDelta) {
         Serial.println(this->messd.rootClockPhaseOffset);
         Serial.println(this->messd.rootBeatCounter);
         Serial.println(this->messd.scaledBeatCounter);
-        Serial.println();
+		Serial.println(this->messd.tempoDivide);
+		Serial.println(this->messd.tempoMultiply);
+		float offsetRootMeasurePhase = (this->messd.rootClockPhase + this->messd.rootBeatCounter + this->messd.rootClockPhaseOffset);
+    	if (offsetRootMeasurePhase > this->messd.tempoDivide) offsetRootMeasurePhase -= this->messd.tempoDivide;
+
+    	float nextScaledClockPhase = (offsetRootMeasurePhase * this->messd.tempoMultiply) / this->messd.tempoDivide;
+    	nextScaledClockPhase = fmod(nextScaledClockPhase, 1.0f);
+        Serial.println(nextScaledClockPhase);
+		Serial.println("---");
     }
 
     // Animate the modulation button
