@@ -521,12 +521,6 @@ void Module::process(float msDelta) {
     }
     lastModulationPending = this->messd.modulationPending;
 
-	static int every = 0;
-	if (this->messd.modulationPending && every == 0) {
-		Serial.println(messd.scaledClockPhase);
-		every = (every + 1) % 10;
-	}
-
     if (!this->lastDownbeat && this->outs.downbeat) {
         if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
             this->countdownDisplayTime = 0;
