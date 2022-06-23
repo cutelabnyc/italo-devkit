@@ -491,15 +491,41 @@ void Module::process(float msDelta) {
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
-    // static int lastClock = false;
-    // if (!lastClock && this->outs.beat) {
-    //     Serial.print(this->outs.beat);
-    //     Serial.print("\t");
-    //     Serial.print(this->messd.rootBeatCounter);
-    //     Serial.print("\t");
-    //     Serial.println(this->messd.scaledBeatCounter);
-    // }
-    // lastClock = this->outs.beat;
+    static int lastModulationPending = false;
+    if (!lastModulationPending && this->messd.modulationPending) {
+
+		uint8_t originalBeatsPerMeasure = messd.originalBeatsPerMeasure == 0 ? messd.beatsPerMeasure : messd.originalBeatsPerMeasure;
+		float originalMeasurePhase = (messd.originalBeatCounter + messd.rootClockPhase) / originalBeatsPerMeasure;
+		float scaledMeasurePhase = (messd.scaledBeatCounter + messd.scaledClockPhase) / messd.beatsPerMeasure;
+		float scaleFactor = (1.0f - scaledMeasurePhase) / (1.0f - originalMeasurePhase);
+		scaleFactor *= ((float) messd.tempoDivide) / ((float) messd.tempoMultiply);
+
+        Serial.print(this->messd.originalBeatCounter);
+        Serial.print("\t");
+        Serial.print(originalBeatsPerMeasure);
+        Serial.print("\t");
+        Serial.print(this->messd.scaledBeatCounter);
+		Serial.print("\t");
+        Serial.print(this->messd.beatsPerMeasure);
+		Serial.print("\t");
+        Serial.print(originalMeasurePhase);
+		Serial.print("\t");
+        Serial.print(scaledMeasurePhase);
+		Serial.print("\t");
+        Serial.print(messd.tempoDivide);
+		Serial.print("\t");
+        Serial.print(messd.tempoMultiply);
+		Serial.print("\t");
+        Serial.println(scaleFactor);
+		Serial.println("---");
+    }
+    lastModulationPending = this->messd.modulationPending;
+
+	static int every = 0;
+	if (this->messd.modulationPending && every == 0) {
+		Serial.println(messd.scaledClockPhase);
+		every = (every + 1) % 10;
+	}
 
     if (!this->lastDownbeat && this->outs.downbeat) {
         if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
