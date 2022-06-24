@@ -398,6 +398,7 @@ void Module::process(float msDelta) {
     if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
         this->ins.resetBeatCount = 1;
         didReset = 1;
+		Serial.println("reset");
     }
     this->lastBeatInputValue = beatInput;
 
@@ -495,35 +496,35 @@ void Module::process(float msDelta) {
 
     MS_process(&this->messd, &this->ins, &this->outs);
 
-    static int lastModulationPending = false;
-    if (!lastModulationPending && this->messd.modulationPending) {
+    // static int lastModulationPending = false;
+    // if (!lastModulationPending && this->messd.modulationPending) {
 
-        uint8_t originalBeatsPerMeasure = messd.originalBeatsPerMeasure == 0 ? messd.beatsPerMeasure : messd.originalBeatsPerMeasure;
-        float originalMeasurePhase = (messd.originalBeatCounter + messd.rootClockPhase) / originalBeatsPerMeasure;
-        float scaledMeasurePhase = (messd.scaledBeatCounter + messd.scaledClockPhase) / messd.beatsPerMeasure;
-        float scaleFactor = (1.0f - scaledMeasurePhase) / (1.0f - originalMeasurePhase);
-        scaleFactor *= ((float) messd.tempoDivide) / ((float) messd.tempoMultiply);
+    //     uint8_t originalBeatsPerMeasure = messd.originalBeatsPerMeasure == 0 ? messd.beatsPerMeasure : messd.originalBeatsPerMeasure;
+    //     float originalMeasurePhase = (messd.originalBeatCounter + messd.rootClockPhase) / originalBeatsPerMeasure;
+    //     float scaledMeasurePhase = (messd.scaledBeatCounter + messd.scaledClockPhase) / messd.beatsPerMeasure;
+    //     float scaleFactor = (1.0f - scaledMeasurePhase) / (1.0f - originalMeasurePhase);
+    //     scaleFactor *= ((float) messd.tempoDivide) / ((float) messd.tempoMultiply);
 
-        Serial.print(this->messd.originalBeatCounter);
-        Serial.print("\t");
-        Serial.print(originalBeatsPerMeasure);
-        Serial.print("\t");
-        Serial.print(this->messd.scaledBeatCounter);
-        Serial.print("\t");
-        Serial.print(this->messd.beatsPerMeasure);
-        Serial.print("\t");
-        Serial.print(originalMeasurePhase);
-        Serial.print("\t");
-        Serial.print(scaledMeasurePhase);
-        Serial.print("\t");
-        Serial.print(messd.tempoDivide);
-        Serial.print("\t");
-        Serial.print(messd.tempoMultiply);
-        Serial.print("\t");
-        Serial.println(scaleFactor);
-        Serial.println("---");
-    }
-    lastModulationPending = this->messd.modulationPending;
+    //     Serial.print(this->messd.originalBeatCounter);
+    //     Serial.print("\t");
+    //     Serial.print(originalBeatsPerMeasure);
+    //     Serial.print("\t");
+    //     Serial.print(this->messd.scaledBeatCounter);
+    //     Serial.print("\t");
+    //     Serial.print(this->messd.beatsPerMeasure);
+    //     Serial.print("\t");
+    //     Serial.print(originalMeasurePhase);
+    //     Serial.print("\t");
+    //     Serial.print(scaledMeasurePhase);
+    //     Serial.print("\t");
+    //     Serial.print(messd.tempoDivide);
+    //     Serial.print("\t");
+    //     Serial.print(messd.tempoMultiply);
+    //     Serial.print("\t");
+    //     Serial.println(scaleFactor);
+    //     Serial.println("---");
+    // }
+    // lastModulationPending = this->messd.modulationPending;
 
     if (!this->lastDownbeat && this->outs.downbeat) {
         if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
@@ -542,20 +543,20 @@ void Module::process(float msDelta) {
 
         this->state.div = this->ins.subdivisionsPerMeasure;
 
-        Serial.println(this->messd.rootClockPhase);
-        Serial.println(this->messd.scaledClockPhase);
-        Serial.println(this->messd.rootClockPhaseOffset);
-        Serial.println(this->messd.rootBeatCounter);
-        Serial.println(this->messd.scaledBeatCounter);
-        Serial.println(this->messd.tempoDivide);
-        Serial.println(this->messd.tempoMultiply);
-        float offsetRootMeasurePhase = (this->messd.rootClockPhase + this->messd.rootBeatCounter + this->messd.rootClockPhaseOffset);
-        if (offsetRootMeasurePhase > this->messd.tempoDivide) offsetRootMeasurePhase -= this->messd.tempoDivide;
+        // Serial.println(this->messd.rootClockPhase);
+        // Serial.println(this->messd.scaledClockPhase);
+        // Serial.println(this->messd.rootClockPhaseOffset);
+        // Serial.println(this->messd.rootBeatCounter);
+        // Serial.println(this->messd.scaledBeatCounter);
+        // Serial.println(this->messd.tempoDivide);
+        // Serial.println(this->messd.tempoMultiply);
+        // float offsetRootMeasurePhase = (this->messd.rootClockPhase + this->messd.rootBeatCounter + this->messd.rootClockPhaseOffset);
+        // if (offsetRootMeasurePhase > this->messd.tempoDivide) offsetRootMeasurePhase -= this->messd.tempoDivide;
 
-        float nextScaledClockPhase = (offsetRootMeasurePhase * this->messd.tempoMultiply) / this->messd.tempoDivide;
-        nextScaledClockPhase = fmod(nextScaledClockPhase, 1.0f);
-        Serial.println(nextScaledClockPhase);
-        Serial.println("---");
+        // float nextScaledClockPhase = (offsetRootMeasurePhase * this->messd.tempoMultiply) / this->messd.tempoDivide;
+        // nextScaledClockPhase = fmod(nextScaledClockPhase, 1.0f);
+        // Serial.println(nextScaledClockPhase);
+        // Serial.println("---");
     }
 
     // Animate the modulation button
