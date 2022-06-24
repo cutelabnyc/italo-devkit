@@ -398,7 +398,7 @@ void Module::process(float msDelta) {
     if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
         this->ins.resetBeatCount = 1;
         didReset = 1;
-		Serial.println("reset");
+        Serial.println("reset");
     }
     this->lastBeatInputValue = beatInput;
 
@@ -466,15 +466,20 @@ void Module::process(float msDelta) {
 
     // Cheat and pass in the measured period time directly
     if (this->lastRecordedHighClockTime != lastHighClockTime) {
-        if (this->lastRecordedHighClockTime == 0) {
-            measuredPeriod = lastHighClockTime;
-        } else if (lastHighClockTime > this->lastRecordedHighClockTime) {
-            measuredPeriod = lastHighClockTime - this->lastRecordedHighClockTime;
-        } else {
-            measuredPeriod = (4294967295 - this->lastRecordedHighClockTime) + lastHighClockTime; // wraparound
+
+        if (this->lastRecordedHighClockTime > 0 && lastHighClockTime > 0)
+            hasProcessedHighClock = true;
+
+        if (hasProcessedHighClock) {
+            if (lastHighClockTime > this->lastRecordedHighClockTime) {
+                measuredPeriod = lastHighClockTime - this->lastRecordedHighClockTime;
+            } else {
+                measuredPeriod = (4294967295 - this->lastRecordedHighClockTime) + lastHighClockTime; // wraparound
+            }
         }
         this->lastRecordedHighClockTime = lastHighClockTime;
     }
+
     this->ins.cheatedMeasuredPeriod = measuredPeriod;
 
     // Serial.println(this->ins.cheatedMeasuredPeriod);

@@ -27,6 +27,7 @@ private:
     unsigned long lastProcessTime = 0;
     unsigned long lastRecordedHighClockTime = 0;
     unsigned long measuredPeriod = 500000;
+	uint8_t hasProcessedHighClock = false;
 
     // Modulation switch gets its own dedicated pin
     uint8_t modSwitchPin = A3; // PC3
