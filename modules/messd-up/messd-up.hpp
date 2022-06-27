@@ -9,6 +9,8 @@
 #define MAX_VOLTAGE	(1023)
 #define EOM_BUFFER_MS (10)
 #define EOM_LED_BUFFER_MS (250)
+#define MOD_BUTTON_FLASH_TIME (75)
+#define MOD_BUTTON_FLASH_COUNT (4) // To make this a bit easier to code, this should always be 2x the number of flashes you want
 #define MOD_BUTTON_STROBE_SLOW (250)
 #define MOD_BUTTON_RESET_TIME_MS (2000)
 #define TEMPO_DISPLAY_TIME (2000)
@@ -99,6 +101,8 @@ private:
     uint8_t canTriggerReset = 1;
     float eomBuffer = 0.0f;
     float modHoldTime = 0.0;
+	uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
+	float modButtonFlashTimer = 0.0f;
 
 	// Holding down the div encoder switch
     float divHoldTime = 0.0;

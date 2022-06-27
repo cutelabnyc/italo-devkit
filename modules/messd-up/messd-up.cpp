@@ -431,7 +431,7 @@ void Module::process(float msDelta) {
     this->ins.subdivisionsPerMeasure = state.activeDiv;
     this->ins.phase = 0; // unused
     this->ins.ext_clock = clockInput == HIGH;
-    this->ins.modulationSignal = 0; // debug
+    this->ins.modulationSignal = this->analog_mux.outputs[AnalogMux.MOD_INPUT] > (MAX_VOLTAGE >> 1);
     this->ins.modulationSwitch = this->modSwitch == LOW; // active low
     this->ins.latchBeatChangesToDownbeat = beat_latch;
     this->ins.latchDivChangesToDownbeat = div_latch;
@@ -462,7 +462,7 @@ void Module::process(float msDelta) {
     baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
     this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
 
-    this->ins.pulseWidth = 0.5; // debug
+    this->ins.pulseWidth = 0.5;
 
     // Cheat and pass in the measured period time directly
     if (this->lastRecordedHighClockTime != lastHighClockTime) {
@@ -545,8 +545,11 @@ void Module::process(float msDelta) {
         this->eomBuffer = 0;
         this->animateModulateButtonTime = 0.0f;
         this->tempoDisplayTime = 0;
+		this->modButtonFlashTimer = 0.0;
+		this->modButtonFlashCount = 0;
 
         this->state.div = this->ins.subdivisionsPerMeasure;
+		this->state.beats = this->ins.beatsPerMeasure;
 
         // Serial.println(this->messd.rootClockPhase);
         // Serial.println(this->messd.scaledClockPhase);
@@ -568,6 +571,9 @@ void Module::process(float msDelta) {
     bool modButtonOn = false;
     if (this->modSwitch == LOW) {
         modButtonOn = true;
+	} else if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
+		// Serial.println(modButtonFlashCount);
+		modButtonOn = this->modButtonFlashCount % 2 > 0;
     } else if (this->outs.modulationPending) {
         modButtonOn = this->animateModulateButtonTime < MOD_BUTTON_STROBE_SLOW;
         this->animateModulateButtonTime += msDelta;
@@ -616,4 +622,12 @@ void Module::process(float msDelta) {
 
     this->eomBuffer += msDelta;
     if (this->eomBuffer > 5000000) this->eomBuffer = 5000000;
+
+	if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
+		this->modButtonFlashTimer += msDelta;
+		if (this->modButtonFlashTimer > MOD_BUTTON_FLASH_TIME) {
+			this->modButtonFlashCount++;
+			this->modButtonFlashTimer = (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) ? 0.0 : MOD_BUTTON_FLASH_TIME;
+		}
+	}
 };
