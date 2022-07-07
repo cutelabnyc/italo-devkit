@@ -93,6 +93,7 @@ void Module::_processEncoders() {
             // You can't change beats when you're in a round trip modulation, in latch mode
             if (!(messd.inRoundTripModulation && ins.latchModulationToDownbeat)) {
                 state.beats += inc;
+				this->latchPulseTimer = 0.0f;
                 if (state.beats < beatsDivMin)
                     state.beats = beatsDivMax;
                 if (state.beats > beatsDivMax)
@@ -118,7 +119,7 @@ void Module::_processEncoders() {
         } else {
             this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
             state.div += inc;
-
+			this->latchPulseTimer = 0.0f;
             if (state.div < beatsDivMin)
                 state.div = beatsDivMax;
             if (state.div > beatsDivMax)
@@ -616,11 +617,11 @@ void Module::process(float msDelta) {
     // Configure LEDs
 	bool beatLatchDisplay = this->beat_latch;
 	if (this->state.activeBeats != this->messd.beatsPerMeasure) {
-		beatLatchDisplay = this->latchPulseTimer < (LATCH_PULSE_TIME / 2.0f);
+		beatLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
 	}
 	bool divLatchDisplay = this->div_latch;
 	if (this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
-		divLatchDisplay = this->latchPulseTimer < (LATCH_PULSE_TIME / 2.0f);
+		divLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
 	}
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
     leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
