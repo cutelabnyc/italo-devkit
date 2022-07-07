@@ -546,7 +546,6 @@ void Module::process(float msDelta) {
     if (this->outs.eom) {
         this->eomBuffer = 0;
         this->animateModulateButtonTime = 0.0f;
-        this->tempoDisplayTime = 0;
 		this->modButtonFlashTimer = 0.0;
 		this->modButtonFlashCount = 0;
 
