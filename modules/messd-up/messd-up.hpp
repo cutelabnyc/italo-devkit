@@ -85,7 +85,8 @@ private:
         Pop,
         InputClockDivide,
 		BeatMode,
-		Countdown
+		Countdown,
+		BeatsEqualDivs
     };
     DisplayState displayState = DisplayState::Default;
 
@@ -104,6 +105,8 @@ private:
     float modHoldTime = 0.0;
 	uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
 	float modButtonFlashTimer = 0.0f;
+	uint8_t modulationButtonIgnored = 0;
+	uint16_t beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
 
 	// Holding down the div encoder switch
     float divHoldTime = 0.0;

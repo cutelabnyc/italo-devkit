@@ -89,11 +89,13 @@ void Module::_processEncoders() {
             // No-op, the beat encoder doesn't do anything here
         } else {
             this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
+            this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
+            this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
 
             // You can't change beats when you're in a round trip modulation, in latch mode
             if (!(messd.inRoundTripModulation && ins.latchModulationToDownbeat)) {
                 state.beats += inc;
-				this->latchPulseTimer = 0.0f;
+                this->latchPulseTimer = 0.0f;
                 if (state.beats < beatsDivMin)
                     state.beats = beatsDivMax;
                 if (state.beats > beatsDivMax)
@@ -118,8 +120,11 @@ void Module::_processEncoders() {
             if (inputClockDivider > Module::inputClockDivideMax) inputClockDivider = Module::inputClockDivideMax;
         } else {
             this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
+            this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
+            this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
+
             state.div += inc;
-			this->latchPulseTimer = 0.0f;
+            this->latchPulseTimer = 0.0f;
             if (state.div < beatsDivMin)
                 state.div = beatsDivMax;
             if (state.div > beatsDivMax)
@@ -235,13 +240,13 @@ void Module::_display() {
     }
 
     int value, decimal = 0, colon = 0;
-	int tempoDecimal = 1;
+    int tempoDecimal = 1;
     long displayableTempo = (long) round(this->scaledTempo * 10.0f);
-	if (displayableTempo > 10000) {
-		displayableTempo /= 10;
-		displayableTempo %= 10000;
-		tempoDecimal = 0;
-	}
+    if (displayableTempo > 10000) {
+        displayableTempo /= 10;
+        displayableTempo %= 10000;
+        tempoDecimal = 0;
+    }
 
     if (this->outs.resetPending) {
         this->displayState = DisplayState::Pop;
@@ -254,6 +259,8 @@ void Module::_display() {
         this->displayState = DisplayState::BeatMode;
     } else if (this->countdownDisplayTime < COUNTDOWN_DISPLAY_TIME) {
         this->displayState = DisplayState::Countdown;
+    } else if (this->beatsEqualsDivDisplayTime < OTHER_DISPLAY_TIME) {
+        this->displayState = DisplayState::BeatsEqualDivs;
     } else {
         this->displayState = DisplayState::Default;
         colon = true;
@@ -274,6 +281,8 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Countdown) {
                 value = countdownSampleAndHold / 1000;
                 if (value == 0) value = (int) SpecialDigits::Nothing;
+            } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+                value = (int) SpecialDigits::Nothing;
             }
             break;
         case 1:
@@ -281,7 +290,7 @@ void Module::_display() {
                 value = ((displayableTempo) / 100) % 10;
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv % 10;
-				decimal = this->outs.subdivision;
+                decimal = this->outs.subdivision;
             } else if (this->displayState == DisplayState::Pop) {
                 value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
@@ -291,6 +300,8 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Countdown) {
                 value = countdownSampleAndHold / 100;
                 if (value == 0) value = (int) SpecialDigits::Nothing;
+            } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+                value = (int) SpecialDigits::D;
             }
             break;
         case 2:
@@ -309,6 +320,8 @@ void Module::_display() {
             } else if (this->displayState == DisplayState::Countdown) {
                 value = countdownSampleAndHold / 10;
                 if (value == 0) value = (int) SpecialDigits::Nothing;
+            } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+                value = (int) SpecialDigits::Equals;
             }
             break;
         case 3:
@@ -316,7 +329,7 @@ void Module::_display() {
                 value = displayableTempo % 10;
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats % 10;
-				decimal = this->outs.beat;
+                decimal = this->outs.beat;
             } else if (this->displayState == DisplayState::Pop) {
                 value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
@@ -325,6 +338,8 @@ void Module::_display() {
                 value = (int) SpecialDigits::T;
             } else if (this->displayState == DisplayState::Countdown) {
                 value = countdownSampleAndHold % 10;
+            } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+                value = (int) SpecialDigits::B;
             }
             break;
     }
@@ -413,9 +428,9 @@ void Module::process(float msDelta) {
 
     // Compute the final value for subdivisions and beats based on modulation inputs
     // and attenuverters
-	int divInput = this->analog_mux.outputs[AnalogMux.DIVIDE_INPUT];
-	divInput += DIV_INPUT_CALIBRATION;
-	divInput = max(0, min(MAX_VOLTAGE, divInput));
+    int divInput = this->analog_mux.outputs[AnalogMux.DIVIDE_INPUT];
+    divInput += DIV_INPUT_CALIBRATION;
+    divInput = max(0, min(MAX_VOLTAGE, divInput));
     float divOffset = 1.0f - (float) (divInput) / (float) MAX_VOLTAGE;
 #ifndef IS_POWERED_FROM_ARDUINO
     divOffset -= 0.5f;
@@ -556,11 +571,11 @@ void Module::process(float msDelta) {
     if (this->outs.eom) {
         this->eomBuffer = 0;
         this->animateModulateButtonTime = 0.0f;
-		this->modButtonFlashTimer = 0.0;
-		this->modButtonFlashCount = 0;
+        this->modButtonFlashTimer = 0.0;
+        this->modButtonFlashCount = 0;
 
         this->state.div = this->ins.subdivisionsPerMeasure;
-		this->state.beats = this->ins.beatsPerMeasure;
+        this->state.beats = this->ins.beatsPerMeasure;
 
         // Serial.println(this->messd.rootClockPhase);
         // Serial.println(this->messd.scaledClockPhase);
@@ -578,26 +593,42 @@ void Module::process(float msDelta) {
         // Serial.println("---");
     }
 
-	// Serial.print(this->outs.patternIndex);
-	// Serial.print("\t");
-	// Serial.print(this->outs.chunk);
-	// Serial.print("\t");
-	// Serial.print(this->outs.prescale);
-	// Serial.print("\t");
-	// Serial.print(this->outs.subchunk);
-	// Serial.print("\t");
-	// Serial.print(this->outs.scale);
-	// Serial.print("\t");
-	// Serial.println(this->outs.patternPhase);
-	// Serial.println("---");
+    if (this->outs.modulationRequestSkipped) {
+        this->modButtonFlashTimer = 0.0;
+        this->modButtonFlashCount = 0.0;
+        this->modulationButtonIgnored = true;
+        this->beatsEqualsDivDisplayTime = 0;
+    }
+    if (this->modSwitch == HIGH) {
+        this->modulationButtonIgnored = false;
+    }
+
+    // Serial.print(this->outs.patternIndex);
+    // Serial.print("\t");
+    // Serial.print(this->outs.chunk);
+    // Serial.print("\t");
+    // Serial.print(this->outs.prescale);
+    // Serial.print("\t");
+    // Serial.print(this->outs.subchunk);
+    // Serial.print("\t");
+    // Serial.print(this->outs.scale);
+    // Serial.print("\t");
+    // Serial.println(this->outs.patternPhase);
+    // Serial.println("---");
 
     // Animate the modulation button
     bool modButtonOn = false;
     if (this->modSwitch == LOW) {
-        modButtonOn = true;
-	} else if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
-		// Serial.println(modButtonFlashCount);
-		modButtonOn = this->modButtonFlashCount % 2 > 0;
+        if (this->modulationButtonIgnored) {
+            if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
+                modButtonOn = this->modButtonFlashCount % 2 > 0;
+            }
+        } else {
+            modButtonOn = true;
+        }
+    } else if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
+        // Serial.println(modButtonFlashCount);
+        modButtonOn = this->modButtonFlashCount % 2 > 0;
     } else if (this->outs.modulationPending) {
         modButtonOn = this->animateModulateButtonTime < MOD_BUTTON_STROBE_SLOW;
         this->animateModulateButtonTime += msDelta;
@@ -624,14 +655,14 @@ void Module::process(float msDelta) {
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
 
     // Configure LEDs
-	bool beatLatchDisplay = this->beat_latch;
-	if (this->state.activeBeats != this->messd.beatsPerMeasure) {
-		beatLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
-	}
-	bool divLatchDisplay = this->div_latch;
-	if (this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
-		divLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
-	}
+    bool beatLatchDisplay = this->beat_latch;
+    if (this->state.activeBeats != this->messd.beatsPerMeasure) {
+        beatLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
+    }
+    bool divLatchDisplay = this->div_latch;
+    if (this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
+        divLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
+    }
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
     leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_LED_BUFFER_MS ? LOW : HIGH;
@@ -654,16 +685,20 @@ void Module::process(float msDelta) {
 
     this->eomBuffer += msDelta;
     if (this->eomBuffer > 5000000) this->eomBuffer = 5000000;
-	this->latchPulseTimer += msDelta;
-	if (this->latchPulseTimer > LATCH_PULSE_TIME) {
-		this->latchPulseTimer = fmod(this->latchPulseTimer, LATCH_PULSE_TIME);
-	}
+    this->latchPulseTimer += msDelta;
+    if (this->latchPulseTimer > LATCH_PULSE_TIME) {
+        this->latchPulseTimer = fmod(this->latchPulseTimer, LATCH_PULSE_TIME);
+    }
 
-	if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
-		this->modButtonFlashTimer += msDelta;
-		if (this->modButtonFlashTimer > MOD_BUTTON_FLASH_TIME) {
-			this->modButtonFlashCount++;
-			this->modButtonFlashTimer = (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) ? 0.0 : MOD_BUTTON_FLASH_TIME;
-		}
-	}
+    if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
+        this->modButtonFlashTimer += msDelta;
+        if (this->modButtonFlashTimer > MOD_BUTTON_FLASH_TIME) {
+            this->modButtonFlashCount++;
+            this->modButtonFlashTimer = (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) ? 0.0 : MOD_BUTTON_FLASH_TIME;
+        }
+    }
+
+    this->beatsEqualsDivDisplayTime += msDelta;
+    if (this->beatsEqualsDivDisplayTime > OTHER_DISPLAY_TIME + 1)
+        this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME + 1;
 };

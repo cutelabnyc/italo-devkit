@@ -10,10 +10,12 @@ enum class SpecialDigits {
 	B = 15,
 	E = 16,
 	A = 17,
-	T = 18
+	T = 18,
+	D = 19,
+	Equals = 20
 };
 
-const int digitDisplay[19][8]{
+const int digitDisplay[21][8]{
     // NUMBERS
     {1, 1, 1, 1, 1, 0, 1, 0}, // ZERO
     {0, 0, 1, 0, 0, 0, 1, 0}, // ONE
@@ -36,6 +38,8 @@ const int digitDisplay[19][8]{
 	{1, 1, 0, 1, 1, 1, 0, 0}, // E
 	{1, 0, 1, 1, 1, 1, 1, 0}, // A
 	{1, 1, 0, 0, 1, 1, 0, 0}, // T
+	{1, 1, 1, 0, 0, 1, 1, 0}, // D
+	{0, 1, 0, 0, 0, 1, 0, 0}, // =
 };
 
 static void seven_segment_process(shift_register_t *shift_register,
