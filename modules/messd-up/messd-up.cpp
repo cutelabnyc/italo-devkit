@@ -615,11 +615,11 @@ void Module::process(float msDelta) {
 
     // Configure LEDs
 	bool beatLatchDisplay = this->beat_latch;
-	if (beatLatchDisplay && this->state.activeBeats != this->messd.beatsPerMeasure) {
+	if (this->state.activeBeats != this->messd.beatsPerMeasure) {
 		beatLatchDisplay = this->latchPulseTimer < (LATCH_PULSE_TIME / 2.0f);
 	}
 	bool divLatchDisplay = this->div_latch;
-	if (divLatchDisplay && this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
+	if (this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
 		divLatchDisplay = this->latchPulseTimer < (LATCH_PULSE_TIME / 2.0f);
 	}
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
