@@ -413,7 +413,10 @@ void Module::process(float msDelta) {
 
     // Compute the final value for subdivisions and beats based on modulation inputs
     // and attenuverters
-    float divOffset = 1.0f - (float) (this->analog_mux.outputs[AnalogMux.DIVIDE_INPUT] + DIV_INPUT_CALIBRATION) / (float) MAX_VOLTAGE;
+	int divInput = this->analog_mux.outputs[AnalogMux.DIVIDE_INPUT];
+	divInput += DIV_INPUT_CALIBRATION;
+	divInput = max(0, min(MAX_VOLTAGE, divInput));
+    float divOffset = 1.0f - (float) (divInput) / (float) MAX_VOLTAGE;
 #ifndef IS_POWERED_FROM_ARDUINO
     divOffset -= 0.5f;
     divOffset *= 2.0f;
