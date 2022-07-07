@@ -235,7 +235,13 @@ void Module::_display() {
     }
 
     int value, decimal = 0, colon = 0;
+	int tempoDecimal = 1;
     long displayableTempo = (long) round(this->scaledTempo * 10.0f);
+	if (displayableTempo > 10000) {
+		displayableTempo /= 10;
+		displayableTempo %= 10000;
+		tempoDecimal = 0;
+	}
 
     if (this->outs.resetPending) {
         this->displayState = DisplayState::Pop;
@@ -290,7 +296,7 @@ void Module::_display() {
         case 2:
             if (this->displayState == DisplayState::Tempo) {
                 value = ((displayableTempo) / 10) % 10;
-                decimal = 1;
+                decimal = tempoDecimal;
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats / 10;
             } else if (this->displayState == DisplayState::Pop) {
