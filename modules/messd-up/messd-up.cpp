@@ -274,6 +274,7 @@ void Module::_display() {
                 value = ((displayableTempo) / 100) % 10;
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeDiv % 10;
+				decimal = this->outs.subdivision;
             } else if (this->displayState == DisplayState::Pop) {
                 value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
@@ -308,6 +309,7 @@ void Module::_display() {
                 value = displayableTempo % 10;
             } else if (this->displayState == DisplayState::Default) {
                 value = state.activeBeats % 10;
+				decimal = this->outs.beat;
             } else if (this->displayState == DisplayState::Pop) {
                 value = (int) SpecialDigits::Dash;
             } else if (this->displayState == DisplayState::InputClockDivide) {
@@ -460,7 +462,7 @@ void Module::process(float msDelta) {
     truncationOffset *= 2.0f;
 #endif
     baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
-    this->ins.truncation = baseTruncation >= 1.0f ? -1.0f : baseTruncation;
+    this->ins.truncation = baseTruncation >= 1.0f ? 1.0f : baseTruncation;
 
     this->ins.pulseWidth = 0.5;
 
@@ -567,6 +569,19 @@ void Module::process(float msDelta) {
         // Serial.println("---");
     }
 
+	// Serial.print(this->outs.patternIndex);
+	// Serial.print("\t");
+	// Serial.print(this->outs.chunk);
+	// Serial.print("\t");
+	// Serial.print(this->outs.prescale);
+	// Serial.print("\t");
+	// Serial.print(this->outs.subchunk);
+	// Serial.print("\t");
+	// Serial.print(this->outs.scale);
+	// Serial.print("\t");
+	// Serial.println(this->outs.patternPhase);
+	// Serial.println("---");
+
     // Animate the modulation button
     bool modButtonOn = false;
     if (this->modSwitch == LOW) {
@@ -600,14 +615,22 @@ void Module::process(float msDelta) {
     shift_register_process(&output_sr, this->output_sr_val, 8, true);
 
     // Configure LEDs
+	bool beatLatchDisplay = this->beat_latch;
+	if (beatLatchDisplay && this->state.activeBeats != this->messd.beatsPerMeasure) {
+		beatLatchDisplay = this->latchPulseTimer < (LATCH_PULSE_TIME / 2.0f);
+	}
+	bool divLatchDisplay = this->div_latch;
+	if (divLatchDisplay && this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
+		divLatchDisplay = this->latchPulseTimer < (LATCH_PULSE_TIME / 2.0f);
+	}
     leds_sr_val[(uint8_t) LEDNames::Nothing] = HIGH;
     leds_sr_val[(uint8_t) LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::EoMLED] = this->eomBuffer < EOM_LED_BUFFER_MS ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::ClockLEDButton] = clockInput == HIGH ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::DownbeatLED] = this->outs.downbeat ? LOW : HIGH;
     leds_sr_val[(uint8_t) LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = this->beat_latch ? LOW : HIGH;
-    leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = this->div_latch ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::BeatLatchLED] = beatLatchDisplay ? LOW : HIGH;
+    leds_sr_val[(uint8_t) LEDNames::DivLatchLED] = divLatchDisplay ? LOW : HIGH;
 
     // about 100 msec
     shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
@@ -622,6 +645,10 @@ void Module::process(float msDelta) {
 
     this->eomBuffer += msDelta;
     if (this->eomBuffer > 5000000) this->eomBuffer = 5000000;
+	this->latchPulseTimer += msDelta;
+	if (this->latchPulseTimer > LATCH_PULSE_TIME) {
+		this->latchPulseTimer = fmod(this->latchPulseTimer, LATCH_PULSE_TIME);
+	}
 
 	if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
 		this->modButtonFlashTimer += msDelta;

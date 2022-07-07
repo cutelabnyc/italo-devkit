@@ -18,6 +18,7 @@
 #define DIV_BUTTON_HOLD_TIME (2000)
 #define BEAT_BUTTON_HOLD_TIME (2000)
 #define COUNTDOWN_DISPLAY_TIME (500)
+#define LATCH_PULSE_TIME (500)
 
 // #define IS_POWERED_FROM_ARDUINO
 
@@ -152,13 +153,14 @@ private:
     };
 
     // Storage for the latch switches
-    uint8_t beat_latch = 0;
-    uint8_t div_latch = 0;
+    uint8_t beat_latch = 1;
+    uint8_t div_latch = 1;
     uint8_t initial_div_latch = 0;
 	uint8_t initial_beat_latch = 0;
     uint8_t beat_switch_state_prev = 0;
     uint8_t div_switch_state_prev = 0;
 	uint8_t canSwtichBeatInputModes = 1;
+	float latchPulseTimer = 0.0f;
 
     mux_t analog_mux = {{m0, m1, m2}, analogMuxIn, true, analogMuxOuts, 8};
     mux_t digital_mux = {{m0, m1, m2}, digitalMuxIn, false, digitalMuxOuts, 8};
