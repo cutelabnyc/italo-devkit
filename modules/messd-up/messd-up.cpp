@@ -593,7 +593,7 @@ void Module::process(float msDelta) {
         // Serial.println("---");
     }
 
-    if (this->outs.modulationRequestSkipped) {
+    if (this->outs.modulationRequestSkipped && this->ins.modulationSwitch) {
         this->modButtonFlashTimer = 0.0;
         this->modButtonFlashCount = 0.0;
         this->modulationButtonIgnored = true;
