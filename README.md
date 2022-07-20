@@ -42,3 +42,9 @@ pio run --target upload --target monitor
 ```
 
 After pull requesting, Travis CI will make sure that the code is able to compile and perform integration testing in order to make sure everything is squeaky clean before merging
+
+If you're using clangd as a build tool, you can generate compile compile commands for linting
+
+```
+pio run -t compiledb
+```

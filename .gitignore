@@ -3,3 +3,5 @@
 .vscode/c_cpp_properties.json
 build
 .DS_Store
+compile_commands.json
+.ccls
