@@ -2,100 +2,61 @@
 
 void Module::_scaleValues() {}
 
-void Module::_processEncoders() {
-  int inc =
-      encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
-                      digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
-  if (inc != 0) {
-    state.beats += inc;
-    if (state.beats < beatsDivMin)
-      state.beats = beatsDivMax;
-    if (state.beats > beatsDivMax)
-      state.beats = beatsDivMin;
+unsigned int Module::_makeRandomSeed() {
+  unsigned int out = 0;
+  uint16_t in[4];
+  char reseed;
+  char reset;
+  uint16_t density;
+  char mismatch;
+  unsigned int readBits = 0;
+  while (readBits < CHAR_BIT * sizeof(unsigned int)) {
+    GPIO_read(&GPIO, in, &reseed, &reset, &density, &mismatch);
+    for (char i = 0; i < 4; i++) {
+      out = out << 1;
+      out = out | (in[i] & 1);
+      readBits++;
+    }
   }
-  inc = encoder_process(&div_encoder,
-                        digital_mux.outputs[DigitalMux.DIVIDE_ENC_A],
-                        digital_mux.outputs[DigitalMux.DIVIDE_ENC_B]);
-  if (inc != 0) {
-    state.div += inc;
-    if (state.div < beatsDivMin)
-      state.div = beatsDivMax;
-    if (state.div > beatsDivMax)
-      state.div = beatsDivMin;
-  }
+
+  return out;
 }
 
-Module::Module(){};
+Module::Module() {
+  original_seed = _makeRandomSeed();
+
+  OP_init(&opportunities, channels, 4, 1023, 700, 3, original_seed);
+};
 
 void Module::init() {
   // Analog read pin for the digital mux
-  pinMode(digitalMuxIn, INPUT);
-
-  // Setting all of the shift register pins to be outputs
-  pinMode(clockPinA, OUTPUT);
-  pinMode(latchPinA, OUTPUT);
-  pinMode(dataPinA, OUTPUT);
-
-  // Mux selector pins are outputs
-  pinMode(m0, OUTPUT);
-  pinMode(m1, OUTPUT);
-  pinMode(m2, OUTPUT);
+  GPIO = GPIO_init();
 }
 
 void Module::process(float msDelta) {
-  _processEncoders();
-  mux_process(&digital_mux);
-  mux_process(&analog_mux);
 
-  if (digitCounter == 4) {
-    digitCounter = 0;
+  GPIO_read(&GPIO, GATE_in, &RESEED_in, &RESET_in, &DENSITY_in, &MISMATCH_in);
+
+  uint16_t time = millis();
+  uint16_t msec = (time - lastMsec) * time_dilation;
+  lastMsec = time;
+  bool reseed = RESEED_in == HIGH;
+  if (!last_reseed && reseed) {
+    random_counter++;
+    OP_set_seed(&opportunities, original_seed + random_counter * 69 + time);
+  }
+  last_reseed = reseed;
+
+  OP_process(&opportunities, GATE_in, GATE_out, RESET_in > 0, &DENSITY_in,
+             &AUTOPULSE_out, MISSED_opportunities, (char)msec);
+
+  // In "match" mode, copy from outputs to the missed opportunities
+  // This is basically the same as the straight normalization from before
+  if (MISMATCH_in == 1) {
+    for (char i = 0; i < 3; i++) {
+      MISSED_opportunities[i] = GATE_out[i];
+    }
   }
 
-  int value;
-
-  switch (digitCounter) {
-  case 0:
-    value = state.div / 10;
-    break;
-  case 1:
-    value = state.div % 10;
-    break;
-  case 2:
-    value = state.beats / 10;
-    break;
-  case 3:
-    value = state.beats % 10;
-    break;
-  }
-  seven_segment_process(&shift_register, digitCounter, value);
-  digitCounter++;
-  /* this->ins.delta = msDelta / 1000.0; */
-  /* this->ins.tempo = this->inputBuffer[TEMPO]; */
-  /* this->ins.tempo = this->inputBuffer[DEBUG_TEMPO]; */
-  /* this->ins.beatsPerMeasure = this->inputBuffer[BEATS]; */
-  /* this->ins.subdivisionsPerMeasure = this->inputBuffer[SUBDIVISIONS]; */
-  // this->ins.phase = this->inputBuffer[PHASE];
-  // this->ins.beatsPerMeasure = 4;
-  // this->ins.subdivisionsPerMeasure = 7;
-  /* this->ins.phase = 0; */
-
-  /* this->ins.ext_clock = 0; */
-  /* this->ins.truncation = 0; */
-  /* this->ins.metricModulation = 0; */
-  /* this->ins.latchChangesToDownbeat = 0; */
-  /* this->ins.invert = 0; */
-  /* this->ins.isRoundTrip = 0; */
-  /* this->ins.reset = 0; */
-
-  /* this->ins.wrap = 0; */
-  /* this->ins.pulseWidth = 0.5; */
-
-  /* _scaleValues(); */
-
-  /* MS_process(&this->messd, &this->ins, &this->outs); */
-
-  /* this->outputBuffer[BEATS_OUT] = this->outs.beat; */
-  /* this->outputBuffer[SUBDIVISIONS_OUT] = this->outs.subdivision; */
-  /* this->outputBuffer[DOWNBEAT_OUT] = this->outs.downbeat; */
-  /* this->outputBuffer[PHASE_OUT] = this->outs.phase; */
+  GPIO_write(&GPIO, GATE_out, &AUTOPULSE_out, MISSED_opportunities);
 };

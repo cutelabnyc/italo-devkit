@@ -11,6 +11,7 @@ Module module;
 
 void setup() {
   Serial.begin(9600);
+  Serial.println("Hi hi");
   module.init();
 }
 

@@ -1,6 +1,5 @@
 #ifndef __INTERFACES
 #define __INTERFACES
-using namespace std;
 
 class ModuleInterface {
 public:
