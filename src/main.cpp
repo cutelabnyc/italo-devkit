@@ -9,14 +9,27 @@
 
 Module module;
 
+unsigned long time;
+float lastdelta = 0;
+
 void setup() {
-  Serial.begin(9600);
-  Serial.println("Hi hi");
   module.init();
+  time = micros();
 }
 
 /**
  * The three step process consists of reading GPIO values,
  * processing the data, and writing the output values.
  **/
-void loop() { module.process(0); }
+void loop() {
+  unsigned long nexttime = micros();
+  float delta;
+  if (nexttime < time) {
+    delta = (4294967295 - time) + nexttime;
+  } else {
+    delta = (float)(nexttime - time);
+  }
+  module.process(delta / 1000.0);
+  lastdelta = delta;
+  time = nexttime;
+}

@@ -9,13 +9,14 @@ typedef struct mux {
   uint8_t muxSize;
 } mux_t;
 
-static void mux_process(mux_t *self) {
-  for (int i = 0; i < self->muxSize; i++) {
-    for (int j = 0; j < 3; j++) {
-      digitalWrite(self->selectorPins[j], bitRead(i, j));
-    }
+static void mux_process(mux_t *self, int offset = 0) {
+    for (int i = 0; i < self->muxSize; i++) {
+        int oi = (i + offset) % self->muxSize;
+        for (int j = 0; j < 3; j++) {
+            digitalWrite(self->selectorPins[j], bitRead(oi, j));
+        }
 
-    self->outputs[i] = self->isAnalog ? analogRead(self->inputPin)
-                                      : digitalRead(self->inputPin);
-  }
+        self->outputs[oi] = self->isAnalog ? analogRead(self->inputPin)
+                                           : digitalRead(self->inputPin);
+    }
 }
