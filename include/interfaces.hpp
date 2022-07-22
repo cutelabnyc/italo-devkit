@@ -15,6 +15,7 @@
 #include <cutemodules.h>
 
 typedef char pin_t;
+
 /* template <typename T> struct pin_t { */
 /*   char address; */
 /*   T value; */
@@ -36,7 +37,6 @@ typedef struct GPIO {
   pin_t MISSEDOPPORTUNITIES[3];
 
   char densityReadSequence;
-
 } GPIO_t;
 
 template <typename I, typename O> class ModuleInterface {
@@ -44,9 +44,6 @@ private:
   virtual GPIO_t GPIO_init();
   virtual void GPIO_read(GPIO_t *self, I *ins, O *outs);
   virtual void GPIO_write(GPIO_t *self, I *ins, O *outs);
-
-  I ins;
-  O outs;
 
 public:
   virtual void initHardware();

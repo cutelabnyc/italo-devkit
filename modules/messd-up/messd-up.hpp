@@ -24,11 +24,12 @@
 
 // #define IS_POWERED_FROM_ARDUINO
 
-class Module : public ModuleInterface {
+class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
   messd_t messd;
   messd_ins_t ins;
   messd_outs_t outs;
+
   unsigned long lastProcessTime = 0;
   unsigned long lastRecordedHighClockTime = 0;
   unsigned long measuredPeriod = 500000;
@@ -223,10 +224,8 @@ public:
    */
   GPIO_t GPIO_init();
 
-  void GPIO_read(GPIO_t *self, uint16_t *in, char *reseed, char *reset,
-                 uint16_t *density, char *mismatch);
-  void GPIO_write(GPIO_t *self, bool *out, uint16_t *pulse_out,
-                  bool *missed_opportunities);
+  void GPIO_read(GPIO_t *self, messd_ins_t *ins, messd_outs_t *outs);
+  void GPIO_write(GPIO_t *self, messd_ins_t *ins, messd_outs_t *outs);
 
   void initHardware();
   void process(float microsDelta);

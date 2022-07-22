@@ -15,10 +15,6 @@ static uint8_t d_register;
 unsigned int Module::_makeRandomSeed() {
   unsigned int out = 0;
   uint16_t in[4];
-  char reseed;
-  char reset;
-  uint16_t density;
-  char mismatch;
   unsigned int readBits = 0;
   while (readBits < CHAR_BIT * sizeof(unsigned int)) {
     GPIO_read(&GPIO, &opportunities_ins, &opportunities_outs);
