@@ -25,25 +25,13 @@ typedef char pin_t;
 /**
  * Struct representing the entire IO for the module
  */
-typedef struct GPIO {
-  pin_t IN[4];
-  pin_t OUT[4];
-  pin_t RESEED;
-  pin_t RESET;
-  pin_t DENSITY;
-  pin_t PULSE_OUT;
-  pin_t LEDS[2];
-  pin_t MISMATCH;
-  pin_t MISSEDOPPORTUNITIES[3];
-
-  char densityReadSequence;
-} GPIO_t;
-
 template <typename I, typename O> class ModuleInterface {
+
 private:
-  virtual GPIO_t GPIO_init();
-  virtual void GPIO_read(GPIO_t *self, I *ins, O *outs);
-  virtual void GPIO_write(GPIO_t *self, I *ins, O *outs);
+  virtual void GPIO_read(I *ins, O *outs);
+  virtual void GPIO_write(I *ins, O *outs);
+
+  class GPIO;
 
 public:
   virtual void process(float msDelta);
