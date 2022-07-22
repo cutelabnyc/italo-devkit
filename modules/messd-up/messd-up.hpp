@@ -227,6 +227,5 @@ public:
   void GPIO_read(GPIO_t *self, messd_ins_t *ins, messd_outs_t *outs);
   void GPIO_write(GPIO_t *self, messd_ins_t *ins, messd_outs_t *outs);
 
-  void initHardware();
   void process(float microsDelta);
 };

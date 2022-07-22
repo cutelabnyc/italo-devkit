@@ -146,12 +146,8 @@ Module::Module() {
   opportunities.original_seed = _makeRandomSeed();
 
   OP_init(&opportunities, 4, 1023, 700, 3);
-};
-
-void Module::initHardware() {
-  // Analog read pin for the digital mux
   GPIO = GPIO_init();
-}
+};
 
 void Module::process(float msDelta) {
 

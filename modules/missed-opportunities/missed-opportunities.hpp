@@ -22,6 +22,5 @@ private:
 public:
   Module();
 
-  void initHardware();
   void process(float msDelta);
 };

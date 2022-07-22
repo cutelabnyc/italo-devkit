@@ -46,7 +46,6 @@ private:
   virtual void GPIO_write(GPIO_t *self, I *ins, O *outs);
 
 public:
-  virtual void initHardware();
   virtual void process(float msDelta);
 };
 #endif

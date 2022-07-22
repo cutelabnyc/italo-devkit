@@ -12,10 +12,7 @@ Module module;
 unsigned long time;
 float lastdelta = 0;
 
-void setup() {
-  module.initHardware();
-  time = micros();
-}
+void setup() { time = micros(); }
 
 /**
  * The three step process consists of reading GPIO values,

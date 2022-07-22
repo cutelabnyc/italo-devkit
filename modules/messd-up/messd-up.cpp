@@ -371,9 +371,9 @@ void Module::GPIO_read(GPIO_t *self, uint16_t *in, char *reseed, char *reset,
 void Module::GPIO_write(GPIO_t *self, bool *out, uint16_t *pulse_out,
                         bool *missed_opportunities){};
 
-Module::Module() { MS_init(&this->messd); };
+Module::Module() {
 
-void Module::initHardware() {
+  MS_init(&this->messd);
 
   // Enable interrupts for the clock input pin
   cli();
@@ -421,7 +421,9 @@ void Module::initHardware() {
   ITimer1.init();
   ITimer2.init();
   ITimer1.setFrequency(timerFreqHz, TimerHandler);
-}
+};
+
+void Module::initHardware() {}
 
 void Module::process(float msDelta) {
 
