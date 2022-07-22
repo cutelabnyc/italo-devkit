@@ -423,8 +423,6 @@ Module::Module() {
   ITimer1.setFrequency(timerFreqHz, TimerHandler);
 };
 
-void Module::initHardware() {}
-
 void Module::process(float msDelta) {
 
   uint8_t clockInput = lastClock;
