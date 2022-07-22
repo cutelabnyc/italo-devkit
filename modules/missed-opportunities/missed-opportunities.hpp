@@ -12,7 +12,7 @@ private:
 
   uint16_t GATE_in[4];
   bool GATE_out[4];
-  bool MISSED_opportunities[4 - 1];
+  bool MISSED_opportunities[3];
 
   char RESEED_in;
   char RESET_in;
@@ -35,6 +35,6 @@ private:
 public:
   Module();
 
-  void init();
+  void initHardware();
   void process(float msDelta);
 };

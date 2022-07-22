@@ -28,7 +28,7 @@ Module::Module() {
   OP_init(&opportunities, channels, 4, 1023, 700, 3, original_seed);
 };
 
-void Module::init() {
+void Module::initHardware() {
   // Analog read pin for the digital mux
   GPIO = GPIO_init();
 }

@@ -13,7 +13,7 @@ unsigned long time;
 float lastdelta = 0;
 
 void setup() {
-  module.init();
+  module.initHardware();
   time = micros();
 }
 
