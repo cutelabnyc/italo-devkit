@@ -14,26 +14,19 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
-typedef char pin_t;
-
-/* template <typename T> struct pin_t { */
-/*   char address; */
-/*   T value; */
-/*   bool type; */
-/* }; */
-
 /**
  * Struct representing the entire IO for the module
  */
 template <typename I, typename O> class ModuleInterface {
-
 private:
   virtual void GPIO_read(I *ins, O *outs);
   virtual void GPIO_write(I *ins, O *outs);
 
-  class GPIO;
-
 public:
+  template <class T> class GPIO {
+  protected:
+    typedef unsigned char pin_t;
+  };
   virtual void process(float msDelta);
 };
 #endif
