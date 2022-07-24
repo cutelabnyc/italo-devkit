@@ -30,33 +30,36 @@ private:
   messd_ins_t ins;
   messd_outs_t outs;
 
+  /**
+   * TODO - the pin_t data type should be generic. Some pin_ts are
+   * of type char, some are of type uint8_t. Add a template to the
+   * class!
+   */
+  class MessdUpPins : public GPIO<MessdUpPins> {
+  public:
+    // Modulation switch gets its own dedicated pin
+    pin_t MODSWITCH = A3;
+    // Shift register pins (seven segment)
+    pin_t SEVEN_SEG_REGISTER[3] = {11, 9, 10}; // PB3, PB1, PB2
+                                               // Output shift register pins
+    pin_t SEVEN_SEG_OUT[3] = {7, 6, 5};        // PD7, PD6, PD5
+                                               // LED shift register pins
+    pin_t SEVEN_SEG_LEDS[3] = {8, A4, A5};     // PB0, PC4, PC5
+                                               // Mux controller pins
+    pin_t MUX_CONTROLLER[3] = {4, 3, 2};       // PD4, PD3, PD2
+                                               // Analog Mux In
+    pin_t ANALOG_MUX_IN = A0;                  // PC0
+                                               // Digital Mux In
+    pin_t DIGITAL_MUX_IN = A2;                 // PC2
+  };
+
+  void GPIO_read(messd_ins_t *ins, messd_outs_t *outs);
+  void GPIO_write(messd_ins_t *ins, messd_outs_t *outs);
+
   unsigned long lastProcessTime = 0;
   unsigned long lastRecordedHighClockTime = 0;
   unsigned long measuredPeriod = 500000;
   uint8_t hasProcessedHighClock = false;
-
-  // Modulation switch gets its own dedicated pin
-  uint8_t modSwitchPin = A3; // PC3
-
-  // Shift register pins (seven segment)
-  uint8_t dataPinSR = 11;  // PB3
-  uint8_t latchPinSR = 9;  // PB1
-  uint8_t clockPinSR = 10; // PB2
-
-  // Output shift register pins
-  uint8_t dataPinOuts = 7;  // PD7
-  uint8_t latchPinOuts = 6; // PD6
-  uint8_t clockPinOuts = 5; // PD5
-
-  // LED shift register pins
-  uint8_t dataPinLEDs = 8;   // PB0
-  uint8_t latchPinLEDs = A4; // PC4
-  uint8_t clockPinLEDs = A5; // PC5
-
-  // Mux controller pins
-  uint8_t m0 = 4; // PD4
-  uint8_t m1 = 3; // PD3
-  uint8_t m2 = 2; // PD2
 
   // consts
   static const int beatsDivMin = 2;
@@ -67,9 +70,6 @@ private:
   static const int tapTempoMax = 280;
   static const int inputClockDivideMin = 1;
   static const int inputClockDivideMax = 9;
-
-  int analogMuxIn = A0;  // PC0
-  int digitalMuxIn = A2; // PC2
 
   uint8_t digitCounter = 0;
 
@@ -91,6 +91,7 @@ private:
     Countdown,
     BeatsEqualDivs
   };
+
   DisplayState displayState = DisplayState::Default;
 
   // Storage for the clock switch
@@ -168,9 +169,6 @@ private:
   uint8_t canSwtichBeatInputModes = 1;
   float latchPulseTimer = 0.0f;
 
-  mux_t analog_mux = {{m0, m1, m2}, analogMuxIn, true, analogMuxOuts, 8};
-  mux_t digital_mux = {{m0, m1, m2}, digitalMuxIn, false, digitalMuxOuts, 8};
-
   void _scaleValues();
   void _processEncoders();
   void _processTapTempo(float msDelta);
@@ -180,6 +178,7 @@ private:
 
 public:
   Module();
+  MessdUpPins pins;
 
   struct state {
     int beats = 4;
@@ -210,22 +209,32 @@ public:
     int CLOCK_SWITCH = 7;
   } DigitalMux;
 
-  shift_register_t seven_segment_sr = {dataPinSR, latchPinSR, clockPinSR};
-  shift_register_t output_sr = {dataPinOuts, latchPinOuts, clockPinOuts};
-  shift_register_t leds_sr = {dataPinLEDs, latchPinLEDs, clockPinLEDs};
+  shift_register_t seven_segment_sr = {pins.SEVEN_SEG_REGISTER[0],
+                                       pins.SEVEN_SEG_REGISTER[1],
+                                       pins.SEVEN_SEG_REGISTER[2]};
+
+  shift_register_t output_sr = {pins.SEVEN_SEG_OUT[0], pins.SEVEN_SEG_OUT[1],
+                                pins.SEVEN_SEG_OUT[2]};
+
+  shift_register_t leds_sr = {pins.SEVEN_SEG_LEDS[0], pins.SEVEN_SEG_LEDS[1],
+                              pins.SEVEN_SEG_LEDS[2]};
+
+  mux_t analog_mux = {
+      {pins.MUX_CONTROLLER[0], pins.MUX_CONTROLLER[1], pins.MUX_CONTROLLER[2]},
+      pins.ANALOG_MUX_IN,
+      true,
+      analogMuxOuts,
+      8};
+
+  mux_t digital_mux = {
+      {pins.MUX_CONTROLLER[0], pins.MUX_CONTROLLER[1], pins.MUX_CONTROLLER[2]},
+      pins.DIGITAL_MUX_IN,
+      false,
+      digitalMuxOuts,
+      8};
 
   encoder_t div_encoder = {HIGH, HIGH, 0};
   encoder_t beat_encoder = {HIGH, HIGH, 0};
-
-  /**
-   * Temporary placement of virtual GPIO functions in order to not break
-   * building and uploading. Eventually we need to move all the above
-   * GPIO into some generic struct.
-   */
-  GPIO_t GPIO_init();
-
-  void GPIO_read(GPIO_t *self, messd_ins_t *ins, messd_outs_t *outs);
-  void GPIO_write(GPIO_t *self, messd_ins_t *ins, messd_outs_t *outs);
 
   void process(float microsDelta);
 };

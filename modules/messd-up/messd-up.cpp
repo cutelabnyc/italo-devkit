@@ -188,7 +188,7 @@ void Module::_processTapTempo(float msDelta) {
 }
 
 void Module::_processModSwitch(float msDelta) {
-  this->modSwitch = digitalRead(modSwitchPin);
+  this->modSwitch = digitalRead(pins.MODSWITCH);
 
   if (this->modSwitch == LOW) {
     this->modHoldTime += msDelta;
@@ -364,12 +364,10 @@ void Module::_display() {
   seven_segment_process(&seven_segment_sr, digitCounter, value, decimal, colon);
 }
 
-GPIO_t Module::GPIO_init(){};
+void Module::GPIO_read(messd_ins_t *ins, messd_outs_t *outs){
 
-void Module::GPIO_read(GPIO_t *self, uint16_t *in, char *reseed, char *reset,
-                       uint16_t *density, char *mismatch){};
-void Module::GPIO_write(GPIO_t *self, bool *out, uint16_t *pulse_out,
-                        bool *missed_opportunities){};
+};
+void Module::GPIO_write(messd_ins_t *ins, messd_outs_t *outs){};
 
 Module::Module() {
 
@@ -384,28 +382,21 @@ Module::Module() {
   this->eomBuffer = EOM_BUFFER_MS;
 
   // Analog read pin for the digital mux
-  pinMode(digitalMuxIn, INPUT);
+  pinMode(pins.DIGITAL_MUX_IN, INPUT);
 
   // Digital read for the dedicated mod switch pin
-  pinMode(modSwitchPin, INPUT);
+  pinMode(pins.MODSWITCH, INPUT);
 
   // Setting all of the shift register pins to be outputs
-  pinMode(clockPinSR, OUTPUT);
-  pinMode(latchPinSR, OUTPUT);
-  pinMode(dataPinSR, OUTPUT);
-  pinMode(clockPinOuts, OUTPUT);
-  pinMode(latchPinOuts, OUTPUT);
-  pinMode(dataPinOuts, OUTPUT);
-  pinMode(clockPinLEDs, OUTPUT);
-  pinMode(latchPinLEDs, OUTPUT);
-  pinMode(dataPinLEDs, OUTPUT);
-
-  // Mux selector pins are outputs
-  pinMode(m0, OUTPUT);
-  pinMode(m1, OUTPUT);
-  pinMode(m2, OUTPUT);
+  for (char i = 0; i < 3; i++) {
+    pinMode(pins.SEVEN_SEG_REGISTER[i], OUTPUT);
+    pinMode(pins.SEVEN_SEG_OUT[i], OUTPUT);
+    pinMode(pins.SEVEN_SEG_LEDS[i], OUTPUT);
+    pinMode(pins.MUX_CONTROLLER[i], OUTPUT);
+  }
 
   // Clock pins
+  // TODO - make part of GPIO class (Does it really have to be global?)
   pinMode(clockIn, INPUT);
   pinMode(clockOut, OUTPUT);
 
