@@ -17,7 +17,7 @@ unsigned int Module::_makeRandomSeed() {
   uint16_t in[4];
   unsigned int readBits = 0;
   while (readBits < CHAR_BIT * sizeof(unsigned int)) {
-    GPIO_read(&opportunities_ins, &opportunities_outs);
+    HardwareRead(&opportunities_ins, &opportunities_outs);
     for (char i = 0; i < 4; i++) {
       out = out << 1;
       out = out | (in[i] & 1);
@@ -28,7 +28,7 @@ unsigned int Module::_makeRandomSeed() {
   return out;
 }
 
-void Module::GPIO_read(opportunity_ins_t *ins, opportunity_outs_t *outs) {
+void Module::HardwareRead(opportunity_ins_t *ins, opportunity_outs_t *outs) {
   uint16_t analogVal;
   b_register = PINB;
 #ifndef ANALOG_READ
@@ -38,92 +38,95 @@ void Module::GPIO_read(opportunity_ins_t *ins, opportunity_outs_t *outs) {
 
 #ifdef ANALOG_READ
   for (char i = 0; i < 4; i++) {
-    ins->gates[i] = analogRead(pins.IN[i]);
+    ins->gates[i] = analogRead(hardware.IN[i]);
   }
 #else
   c_register = PINC;
   for (char i = 0; i < 4; i++) {
-    ins->gates[i] = (c_register & digitalPinToBitMask(pins.IN[i])) ? 1024 : 0;
+    ins->gates[i] =
+        (c_register & digitalPinToBitMask(hardware.IN[i])) ? 1024 : 0;
   }
 #endif
 
-  ins->reseed = (d_register & digitalPinToBitMask(pins.RESEED)) ? HIGH : LOW;
+  ins->reseed =
+      (d_register & digitalPinToBitMask(hardware.RESEED)) ? HIGH : LOW;
 
 #ifdef ANALOG_READ
-  analogVal = analogRead(pins.RESET);
+  analogVal = analogRead(hardware.RESET);
   ins->reset = analogVal > 700;
 #else
-  ins->reset = (c_register & digitalPinToBitMask(pins.RESET));
+  ins->reset = (c_register & digitalPinToBitMask(hardware.RESET));
 #endif
-  if (pins.DENSITYREADSEQUENCE++ == 2) {
-    ins->density = analogRead(pins.DENSITY);
-    pins.DENSITYREADSEQUENCE = 0;
+  if (hardware.DENSITYREADSEQUENCE++ == 2) {
+    ins->density = analogRead(hardware.DENSITY);
+    hardware.DENSITYREADSEQUENCE = 0;
   }
   ins->miss_match =
-      (d_register & digitalPinToBitMask(pins.MISMATCH)) ? HIGH : LOW;
+      (d_register & digitalPinToBitMask(hardware.MISMATCH)) ? HIGH : LOW;
 
   // *reset = 0;
   // *density = 768;
   // *mismatch = 0; // assume this is match mode
 
   // Reset should appear to be binary, even though it's reading an analog value
-  analogWrite(pins.LEDS[0], ins->reset ? 200 : 0);
-  // analogWrite(pins.LEDS[0], *reset / 4);
-  // analogWrite(pins.LEDS[0], 255);
+  analogWrite(hardware.LEDS[0], ins->reset ? 200 : 0);
+  // analogWrite(hardware.LEDS[0], *reset / 4);
+  // analogWrite(hardware.LEDS[0], 255);
 
-  // analogWrite(pins.LEDS[0], *mismatch ? 255 : 0);
-  // analogWrite(pins.LEDS[1], *density / 32);
+  // analogWrite(hardware.LEDS[0], *mismatch ? 255 : 0);
+  // analogWrite(hardware.LEDS[1], *density / 32);
   float dreg = (ins->density / 4) / 255.0;
-  analogWrite(pins.LEDS[1], (uint8_t)(dreg * dreg * dreg * 255));
+  analogWrite(hardware.LEDS[1], (uint8_t)(dreg * dreg * dreg * 255));
   // analogWrite(5, (uint16_t) (dreg * dreg * dreg * 255));
   // analogWrite(5, *mismatch ? 255 : 0 );
 
-  // analogWrite(pins.LEDS[0], 255);
-  // analogWrite(pins.LEDS[1], 255);
+  // analogWrite(hardware.LEDS[0], 255);
+  // analogWrite(hardware.LEDS[1], 255);
 }
 
-void Module::GPIO_write(opportunity_ins_t *ins, opportunity_outs_t *outs) {
+void Module::HardwareWrite(opportunity_ins_t *ins, opportunity_outs_t *outs) {
   for (char i = 0; i < 4; i++) {
-    __fastwrite(pins.OUT[i], outs->gates[i]);
-    // digitalWrite(pins.OUT[i], 255);
+    __fastwrite(hardware.OUT[i], outs->gates[i]);
+    // digitalWrite(hardware.OUT[i], 255);
 
     // Write the Missed Opportunities
     if (i < 4 - 1) {
-      __fastwrite(pins.MISSEDOPPORTUNITIES[i], ins->missed_opportunities[i]);
-      // digitalWrite(pins.MISSED_OPPORTUNITIES[i], 255);
+      __fastwrite(hardware.MISSEDOPPORTUNITIES[i],
+                  ins->missed_opportunities[i]);
+      // digitalWrite(hardware.MISSED_OPPORTUNITIES[i], 255);
       // digitalWrite(13, HIGH);
-      // digitalWrite(pins.MISSED_OPPORTUNITIES[0], HIGH);
+      // digitalWrite(hardware.MISSED_OPPORTUNITIES[0], HIGH);
     }
   }
 
   // static bool po = false;
   // po != po;
-  // digitalWrite(pins.PULSE_OUT, po ? 255 : 0);
-  __fastwrite(pins.PULSE_OUT, outs->autopulse);
-  // digitalWrite(pins.PULSE_OUT, HIGH);
+  // digitalWrite(hardware.PULSE_OUT, po ? 255 : 0);
+  __fastwrite(hardware.PULSE_OUT, outs->autopulse);
+  // digitalWrite(hardware.PULSE_OUT, HIGH);
 }
 
 Module::Module() {
   opportunities.original_seed = _makeRandomSeed();
 
   for (char i = 0; i < 4; i++) {
-    pinMode(pins.IN[i], INPUT);
-    pinMode(pins.OUT[i], OUTPUT);
+    pinMode(hardware.IN[i], INPUT);
+    pinMode(hardware.OUT[i], OUTPUT);
   }
 
-  pinMode(pins.RESEED, INPUT_PULLUP);
-  pinMode(pins.RESET, INPUT);
-  pinMode(pins.DENSITY, INPUT);
-  pinMode(pins.PULSE_OUT, OUTPUT);
+  pinMode(hardware.RESEED, INPUT_PULLUP);
+  pinMode(hardware.RESET, INPUT);
+  pinMode(hardware.DENSITY, INPUT);
+  pinMode(hardware.PULSE_OUT, OUTPUT);
 
   for (char i = 0; i < 2; i++) {
-    pinMode(pins.LEDS[i], OUTPUT);
+    pinMode(hardware.LEDS[i], OUTPUT);
   }
 
-  pinMode(pins.MISMATCH, INPUT);
+  pinMode(hardware.MISMATCH, INPUT);
 
   for (char i = 0; i < 4 - 1; i++) {
-    pinMode(pins.MISSEDOPPORTUNITIES[i], OUTPUT);
+    pinMode(hardware.MISSEDOPPORTUNITIES[i], OUTPUT);
   }
 
   OP_init(&opportunities, 4, 1023, 700, 3);
@@ -131,7 +134,7 @@ Module::Module() {
 
 void Module::process(float msDelta) {
 
-  GPIO_read(&opportunities_ins, &opportunities_outs);
+  HardwareRead(&opportunities_ins, &opportunities_outs);
 
   uint16_t time = millis();
   uint16_t msec = (time - opportunities.lastMsec) * opportunities.time_dilation;
@@ -155,5 +158,5 @@ void Module::process(float msDelta) {
     }
   }
 
-  GPIO_write(&opportunities_ins, &opportunities_outs);
+  HardwareWrite(&opportunities_ins, &opportunities_outs);
 };

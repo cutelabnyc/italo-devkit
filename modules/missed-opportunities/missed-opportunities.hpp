@@ -11,7 +11,8 @@ private:
 
   unsigned int _makeRandomSeed();
 
-  class MissedOpportunitiesPins : public GPIO<MissedOpportunitiesPins> {
+  class MissedOpportunitiesHardware
+      : public Hardware<MissedOpportunitiesHardware> {
   public:
     pin_t IN[4] = {A5, A0, A1, A2}; // CV Ins -- AD5, AD0, AD1, AD2
     pin_t OUT[4] = {4, 12, 10, 8};  // CV Ins -- PD4, PB4, PB2, PB0
@@ -26,11 +27,11 @@ private:
     pin_t DENSITYREADSEQUENCE = 0; // Only read density every other clock
   };
 
-  void GPIO_read(opportunity_ins_t *ins, opportunity_outs_t *outs);
-  void GPIO_write(opportunity_ins_t *ins, opportunity_outs_t *outs);
+  void HardwareRead(opportunity_ins_t *ins, opportunity_outs_t *outs);
+  void HardwareWrite(opportunity_ins_t *ins, opportunity_outs_t *outs);
 
 public:
   Module();
-  MissedOpportunitiesPins pins;
+  MissedOpportunitiesHardware hardware;
   void process(float msDelta);
 };

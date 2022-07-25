@@ -35,11 +35,11 @@ private:
    * of type char, some are of type uint8_t. Add a template to the
    * class!
    */
-  class MessdUpPins : public GPIO<MessdUpPins> {
+  class MessdUpHardware : public Hardware<MessdUpHardware> {
   public:
     // Modulation switch gets its own dedicated pin
     pin_t MODSWITCH = A3;
-    // Shift register pins (seven segment)
+    // Shift register hardware.(seven segment)
     pin_t SEVEN_SEG_REGISTER[3] = {11, 9, 10}; // PB3, PB1, PB2
                                                // Output shift register pins
     pin_t SEVEN_SEG_OUT[3] = {7, 6, 5};        // PD7, PD6, PD5
@@ -53,8 +53,8 @@ private:
     pin_t DIGITAL_MUX_IN = A2;                 // PC2
   };
 
-  void GPIO_read(messd_ins_t *ins, messd_outs_t *outs);
-  void GPIO_write(messd_ins_t *ins, messd_outs_t *outs);
+  void HardwareRead(messd_ins_t *ins, messd_outs_t *outs);
+  void HardwareWrite(messd_ins_t *ins, messd_outs_t *outs);
 
   unsigned long lastProcessTime = 0;
   unsigned long lastRecordedHighClockTime = 0;
@@ -178,7 +178,7 @@ private:
 
 public:
   Module();
-  MessdUpPins pins;
+  MessdUpHardware hardware;
 
   struct state {
     int beats = 4;
@@ -209,29 +209,31 @@ public:
     int CLOCK_SWITCH = 7;
   } DigitalMux;
 
-  shift_register_t seven_segment_sr = {pins.SEVEN_SEG_REGISTER[0],
-                                       pins.SEVEN_SEG_REGISTER[1],
-                                       pins.SEVEN_SEG_REGISTER[2]};
+  shift_register_t seven_segment_sr = {hardware.SEVEN_SEG_REGISTER[0],
+                                       hardware.SEVEN_SEG_REGISTER[1],
+                                       hardware.SEVEN_SEG_REGISTER[2]};
 
-  shift_register_t output_sr = {pins.SEVEN_SEG_OUT[0], pins.SEVEN_SEG_OUT[1],
-                                pins.SEVEN_SEG_OUT[2]};
+  shift_register_t output_sr = {hardware.SEVEN_SEG_OUT[0],
+                                hardware.SEVEN_SEG_OUT[1],
+                                hardware.SEVEN_SEG_OUT[2]};
 
-  shift_register_t leds_sr = {pins.SEVEN_SEG_LEDS[0], pins.SEVEN_SEG_LEDS[1],
-                              pins.SEVEN_SEG_LEDS[2]};
+  shift_register_t leds_sr = {hardware.SEVEN_SEG_LEDS[0],
+                              hardware.SEVEN_SEG_LEDS[1],
+                              hardware.SEVEN_SEG_LEDS[2]};
 
-  mux_t analog_mux = {
-      {pins.MUX_CONTROLLER[0], pins.MUX_CONTROLLER[1], pins.MUX_CONTROLLER[2]},
-      pins.ANALOG_MUX_IN,
-      true,
-      analogMuxOuts,
-      8};
+  mux_t analog_mux = {{hardware.MUX_CONTROLLER[0], hardware.MUX_CONTROLLER[1],
+                       hardware.MUX_CONTROLLER[2]},
+                      hardware.ANALOG_MUX_IN,
+                      true,
+                      analogMuxOuts,
+                      8};
 
-  mux_t digital_mux = {
-      {pins.MUX_CONTROLLER[0], pins.MUX_CONTROLLER[1], pins.MUX_CONTROLLER[2]},
-      pins.DIGITAL_MUX_IN,
-      false,
-      digitalMuxOuts,
-      8};
+  mux_t digital_mux = {{hardware.MUX_CONTROLLER[0], hardware.MUX_CONTROLLER[1],
+                        hardware.MUX_CONTROLLER[2]},
+                       hardware.DIGITAL_MUX_IN,
+                       false,
+                       digitalMuxOuts,
+                       8};
 
   encoder_t div_encoder = {HIGH, HIGH, 0};
   encoder_t beat_encoder = {HIGH, HIGH, 0};

@@ -188,7 +188,7 @@ void Module::_processTapTempo(float msDelta) {
 }
 
 void Module::_processModSwitch(float msDelta) {
-  this->modSwitch = digitalRead(pins.MODSWITCH);
+  this->modSwitch = digitalRead(hardware.MODSWITCH);
 
   if (this->modSwitch == LOW) {
     this->modHoldTime += msDelta;
@@ -364,10 +364,10 @@ void Module::_display() {
   seven_segment_process(&seven_segment_sr, digitCounter, value, decimal, colon);
 }
 
-void Module::GPIO_read(messd_ins_t *ins, messd_outs_t *outs){
+void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){
 
 };
-void Module::GPIO_write(messd_ins_t *ins, messd_outs_t *outs){};
+void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
 Module::Module() {
 
@@ -382,21 +382,21 @@ Module::Module() {
   this->eomBuffer = EOM_BUFFER_MS;
 
   // Analog read pin for the digital mux
-  pinMode(pins.DIGITAL_MUX_IN, INPUT);
+  pinMode(hardware.DIGITAL_MUX_IN, INPUT);
 
   // Digital read for the dedicated mod switch pin
-  pinMode(pins.MODSWITCH, INPUT);
+  pinMode(hardware.MODSWITCH, INPUT);
 
-  // Setting all of the shift register pins to be outputs
+  // Setting all of the shift register hardware.to be outputs
   for (char i = 0; i < 3; i++) {
-    pinMode(pins.SEVEN_SEG_REGISTER[i], OUTPUT);
-    pinMode(pins.SEVEN_SEG_OUT[i], OUTPUT);
-    pinMode(pins.SEVEN_SEG_LEDS[i], OUTPUT);
-    pinMode(pins.MUX_CONTROLLER[i], OUTPUT);
+    pinMode(hardware.SEVEN_SEG_REGISTER[i], OUTPUT);
+    pinMode(hardware.SEVEN_SEG_OUT[i], OUTPUT);
+    pinMode(hardware.SEVEN_SEG_LEDS[i], OUTPUT);
+    pinMode(hardware.MUX_CONTROLLER[i], OUTPUT);
   }
 
   // Clock pins
-  // TODO - make part of GPIO class (Does it really have to be global?)
+  // TODO - make part of Hardware class (Does it really have to be global?)
   pinMode(clockIn, INPUT);
   pinMode(clockOut, OUTPUT);
 

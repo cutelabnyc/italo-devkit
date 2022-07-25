@@ -19,11 +19,11 @@
  */
 template <typename I, typename O> class ModuleInterface {
 private:
-  virtual void GPIO_read(I *ins, O *outs);
-  virtual void GPIO_write(I *ins, O *outs);
+  virtual void HardwareRead(I *ins, O *outs);
+  virtual void HardwareWrite(I *ins, O *outs);
 
 public:
-  template <class T> class GPIO {
+  template <class T> class Hardware {
   protected:
     typedef unsigned char pin_t;
   };
