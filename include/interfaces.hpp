@@ -27,6 +27,8 @@ public:
   protected:
     typedef unsigned char pin_t;
   };
+
+  virtual void initHardware();
   virtual void process(float msDelta);
 };
 #endif

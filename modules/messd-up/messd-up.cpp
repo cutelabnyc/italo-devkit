@@ -369,9 +369,7 @@ void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){
 };
 void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
-Module::Module() {
-
-  MS_init(&this->messd);
+void Module::initHardware() {
 
   // Enable interrupts for the clock input pin
   cli();
@@ -412,7 +410,9 @@ Module::Module() {
   ITimer1.init();
   ITimer2.init();
   ITimer1.setFrequency(timerFreqHz, TimerHandler);
-};
+}
+
+Module::Module() { MS_init(&this->messd); };
 
 void Module::process(float msDelta) {
 

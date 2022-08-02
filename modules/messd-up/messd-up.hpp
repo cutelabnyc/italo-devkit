@@ -238,5 +238,6 @@ public:
   encoder_t div_encoder = {HIGH, HIGH, 0};
   encoder_t beat_encoder = {HIGH, HIGH, 0};
 
+  void initHardware();
   void process(float microsDelta);
 };

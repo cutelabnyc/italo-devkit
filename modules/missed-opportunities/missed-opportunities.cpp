@@ -106,7 +106,9 @@ void Module::HardwareWrite(opportunity_ins_t *ins, opportunity_outs_t *outs) {
   // digitalWrite(hardware.PULSE_OUT, HIGH);
 }
 
-Module::Module() {
+Module::Module() { OP_init(&opportunities, 4, 1023, 700, 3); };
+
+void Module::initHardware() {
   opportunities.original_seed = _makeRandomSeed();
 
   for (char i = 0; i < 4; i++) {
@@ -128,8 +130,6 @@ Module::Module() {
   for (char i = 0; i < 4 - 1; i++) {
     pinMode(hardware.MISSEDOPPORTUNITIES[i], OUTPUT);
   }
-
-  OP_init(&opportunities, 4, 1023, 700, 3);
 };
 
 void Module::process(float msDelta) {

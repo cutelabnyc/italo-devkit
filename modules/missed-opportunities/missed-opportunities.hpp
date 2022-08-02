@@ -33,5 +33,7 @@ private:
 public:
   Module();
   MissedOpportunitiesHardware hardware;
+
+  void initHardware();
   void process(float msDelta);
 };
