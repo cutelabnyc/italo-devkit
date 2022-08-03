@@ -14,6 +14,12 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
+template <typename P> struct Pin {
+  P val;
+  uint8_t address;
+  uint8_t type; // should be ternary - INPUT OUTPUT PULLUP
+};
+
 /**
  * Struct representing the entire IO for the module
  */
@@ -24,8 +30,13 @@ private:
 
 public:
   template <class T> class Hardware {
-  protected:
-    typedef unsigned char pin_t;
+  public:
+    template <typename P> void PinInit(Pin<P> pin) {
+      pinMode(pin.address, pin.type);
+    };
+    template <typename P> void PinRead(Pin<P> pin) {
+      pin.val = digitalRead(pin.address);
+    };
   };
 
   virtual void initHardware();

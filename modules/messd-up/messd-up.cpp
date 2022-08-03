@@ -188,9 +188,9 @@ void Module::_processTapTempo(float msDelta) {
 }
 
 void Module::_processModSwitch(float msDelta) {
-  this->modSwitch = digitalRead(hardware.MODSWITCH);
+  hardware.PinRead(hardware.MODSWITCH);
 
-  if (this->modSwitch == LOW) {
+  if (hardware.MODSWITCH.val == LOW) {
     this->modHoldTime += msDelta;
   } else {
     this->modHoldTime = 0;
@@ -380,17 +380,17 @@ void Module::initHardware() {
   this->eomBuffer = EOM_BUFFER_MS;
 
   // Analog read pin for the digital mux
-  pinMode(hardware.DIGITAL_MUX_IN, INPUT);
+  hardware.PinInit(hardware.DIGITAL_MUX_IN);
 
   // Digital read for the dedicated mod switch pin
-  pinMode(hardware.MODSWITCH, INPUT);
+  hardware.PinInit(hardware.MODSWITCH);
 
   // Setting all of the shift register hardware.to be outputs
   for (char i = 0; i < 3; i++) {
-    pinMode(hardware.SEVEN_SEG_REGISTER[i], OUTPUT);
-    pinMode(hardware.SEVEN_SEG_OUT[i], OUTPUT);
-    pinMode(hardware.SEVEN_SEG_LEDS[i], OUTPUT);
-    pinMode(hardware.MUX_CONTROLLER[i], OUTPUT);
+    hardware.PinInit(hardware.SEVEN_SEG_REGISTER[i]);
+    hardware.PinInit(hardware.SEVEN_SEG_OUT[i]);
+    hardware.PinInit(hardware.SEVEN_SEG_LEDS[i]);
+    hardware.PinInit(hardware.MUX_CONTROLLER[i]);
   }
 
   // Clock pins
