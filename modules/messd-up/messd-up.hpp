@@ -40,6 +40,8 @@ private:
                                                   {0, 9, OUTPUT},   // PB1
                                                   {0, 10, OUTPUT}}; // PB2
 
+	SevenSegmentDisplay sevenSegmentDisplay(new ShiftRegister(4, 4, 4));
+
     // Output shift register pins
     Pin<unsigned char> SEVEN_SEG_OUT[3] = {{0, 7, OUTPUT},  // PD7
                                              {0, 6, OUTPUT},  // PD6

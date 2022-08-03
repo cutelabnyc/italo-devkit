@@ -1,20 +1,29 @@
 #include <Arduino.h>
+#include <interfaces.hpp>
 
-typedef struct shift_register {
-    int data;
-    int latch;
-    int clock;
-} shift_register_t;
+class ShiftRegister {
+private:
+  Pin<uint8_t> data;
+  Pin<uint8_t> latch;
+  Pin<uint8_t> clock;
 
-static void shift_register_process(shift_register_t *self, uint8_t *bitsToWrite,
-                                   uint8_t numBitsToWrite, bool reverse) {
-    digitalWrite(self->latch, LOW);
+public:
+  ShiftRegister(uint8_t dataPinAddress, uint8_t latchPinAddress,
+                uint8_t clockPinAddress) {
+    data = {0, dataPinAddress, INPUT};
+    latch = {0, latchPinAddress, INPUT};
+    clock = {0, clockPinAddress, INPUT};
+  };
+
+  void process(uint8_t *bitsToWrite, uint8_t numBitsToWrite, bool reverse) {
+    digitalWrite(latch.address, LOW);
 
     for (int i = 0; i < numBitsToWrite; i++) {
-        digitalWrite(self->clock, LOW);
-        digitalWrite(self->data, bitsToWrite[reverse ? 7 - i : i]);
-        digitalWrite(self->clock, HIGH);
+      digitalWrite(clock.address, LOW);
+      digitalWrite(data.address, bitsToWrite[reverse ? 7 - i : i]);
+      digitalWrite(clock.address, HIGH);
     }
 
-    digitalWrite(self->latch, HIGH);
-}
+    digitalWrite(latch.address, HIGH);
+  }
+};
