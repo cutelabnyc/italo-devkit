@@ -51,6 +51,9 @@ private:
 
     Mux analogMux = Mux(muxPins, A0, true);
     Mux digitalMux = Mux(muxPins, A2, false);
+
+    Encoder div = Encoder(HIGH, HIGH, 0);
+    Encoder beat = Encoder(HIGH, HIGH, 0);
   };
 
   void HardwareRead(messd_ins_t *ins, messd_outs_t *outs);
@@ -205,9 +208,6 @@ public:
     int DIVIDE_ENC_A = 6;
     int CLOCK_SWITCH = 7;
   } DigitalMux;
-
-  encoder_t div_encoder = {HIGH, HIGH, 0};
-  encoder_t beat_encoder = {HIGH, HIGH, 0};
 
   void initHardware();
   void process(float microsDelta);

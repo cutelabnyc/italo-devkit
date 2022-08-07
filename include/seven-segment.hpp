@@ -1,6 +1,7 @@
 #include "shift-register.hpp"
 #include <Arduino.h>
 #include <interfaces.hpp>
+
 enum SpecialDigits {
   P = 10,
   Nothing = 11,

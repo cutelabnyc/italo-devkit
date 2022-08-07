@@ -74,8 +74,8 @@ void Module::_scaleValues() {
 }
 
 void Module::_processEncoders() {
-  int inc = encoder_process(
-      &beat_encoder, hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_A),
+  int inc = hardware.beat.process(
+      hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_A),
       hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_B));
   if (inc != 0) {
 
@@ -106,9 +106,11 @@ void Module::_processEncoders() {
       }
     }
   }
-  inc = encoder_process(&div_encoder,
-                        hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_A),
-                        hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_B));
+
+  inc = hardware.div.process(
+      hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_A),
+      hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_B));
+
   if (inc != 0) {
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW) {

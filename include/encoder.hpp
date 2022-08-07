@@ -1,33 +1,40 @@
 #include <Arduino.h>
 
-typedef struct encoder {
-  int lastPin1;
-  int lastPin2;
-  int direction;
-} encoder_t;
+class Encoder {
+private:
+  uint16_t lastPin1;
+  uint16_t lastPin2;
+  int8_t direction;
 
-// Look for lagging edges
-static int encoder_process(encoder_t *oldState, int pin1, int pin2) {
-  int retval = 0;
-  if (pin1 == LOW && oldState->lastPin1 == HIGH) {
-    if (oldState->direction == 0) {
-      oldState->direction = -1;
-    } else if (oldState->direction == 1) {
-      oldState->direction = 0;
-      retval = 1;
-    }
-  } else if (pin2 == LOW && oldState->lastPin2 == HIGH) {
-    if (oldState->direction == 0) {
-      oldState->direction = 1;
-    } else if (oldState->direction == -1) {
-      oldState->direction = 0;
-      retval = -1;
-    }
-  } else if (pin1 == HIGH && pin2 == HIGH) {
-    oldState->direction = 0;
+public:
+  Encoder(uint16_t lastPin1, uint16_t lastPin2, uint8_t direction) {
+    this->lastPin1 = lastPin1;
+    this->lastPin2 = lastPin2;
+    this->direction = direction;
   }
 
-  oldState->lastPin1 = pin1;
-  oldState->lastPin2 = pin2;
-  return retval;
-}
+  uint16_t process(int pin1, int pin2) {
+    int retval = 0;
+    if (pin1 == LOW && this->lastPin1 == HIGH) {
+      if (this->direction == 0) {
+        this->direction = -1;
+      } else if (this->direction == 1) {
+        this->direction = 0;
+        retval = 1;
+      }
+    } else if (pin2 == LOW && this->lastPin2 == HIGH) {
+      if (this->direction == 0) {
+        this->direction = 1;
+      } else if (this->direction == -1) {
+        this->direction = 0;
+        retval = -1;
+      }
+    } else if (pin1 == HIGH && pin2 == HIGH) {
+      this->direction = 0;
+    }
+
+    this->lastPin1 = pin1;
+    this->lastPin2 = pin2;
+    return retval;
+  }
+};
