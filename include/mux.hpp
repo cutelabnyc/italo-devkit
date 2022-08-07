@@ -1,22 +1,43 @@
 #include <Arduino.h>
+#include <interfaces.hpp>
 
-typedef struct mux {
-  uint8_t selectorPins[3];
-  uint8_t inputPin;
+class Mux {
+private:
+  Pin<uint8_t> selectors[3];
+  Pin<uint8_t> input;
   bool isAnalog;
 
   uint16_t *outputs;
-  uint8_t muxSize;
-} mux_t;
+  uint8_t size;
 
-static void mux_process(mux_t *self, int offset = 0) {
-    for (int i = 0; i < self->muxSize; i++) {
-        int oi = (i + offset) % self->muxSize;
-        for (int j = 0; j < 3; j++) {
-            digitalWrite(self->selectorPins[j], bitRead(oi, j));
-        }
-
-        self->outputs[oi] = self->isAnalog ? analogRead(self->inputPin)
-                                           : digitalRead(self->inputPin);
+public:
+  Mux(uint8_t selectors[3], uint8_t input, bool isAnalog, uint8_t muxSize) {
+    for (int i = 0; i < 3; i++) {
+      this->selectors[i] = {0, selectors[i], OUTPUT};
+      pinMode(this->selectors[i].address, this->selectors[i].type);
     }
-}
+    this->input = {0, input, INPUT};
+    pinMode(this->input.address, this->input.type);
+
+    this->isAnalog = isAnalog;
+
+    outputs = (uint16_t *)malloc(sizeof(uint16_t) * muxSize);
+  }
+
+  void process(int offset = 0) {
+    for (int i = 0; i < this->size; i++) {
+      int oi = (i + offset) % this->size;
+      for (int j = 0; j < 3; j++) {
+        digitalWrite(this->selectors[j].address, bitRead(oi, j));
+      }
+
+      this->outputs[oi] = this->isAnalog ? analogRead(this->input.address)
+                                         : digitalRead(this->input.address);
+    }
+  }
+
+  uint16_t getOutput(uint8_t index) {
+    // TODO: Check if array is out of bounds
+    return this->outputs[index];
+  }
+};

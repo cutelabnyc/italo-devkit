@@ -36,32 +36,18 @@ private:
     Pin<unsigned char> MODSWITCH = {0, A3, INPUT};
 
     // Shift register hardware (seven segment)
-    Pin<unsigned char> SEVEN_SEG_REGISTER[3] = {{0, 11, OUTPUT},  // PB3
-                                                  {0, 9, OUTPUT},   // PB1
-                                                  {0, 10, OUTPUT}}; // PB2
+    ShiftRegister sevenSegmentOuts = ShiftRegister(11, 9, 10);
+    ShiftRegister moduleOuts = ShiftRegister(7, 6, 5);
+    ShiftRegister moduleLEDs = ShiftRegister(8, A4, A5);
 
-	SevenSegmentDisplay sevenSegmentDisplay(new ShiftRegister(4, 4, 4));
+    SevenSegmentDisplay sevenSegmentDisplay =
+        SevenSegmentDisplay(&sevenSegmentOuts);
 
-    // Output shift register pins
-    Pin<unsigned char> SEVEN_SEG_OUT[3] = {{0, 7, OUTPUT},  // PD7
-                                             {0, 6, OUTPUT},  // PD6
-                                             {0, 5, OUTPUT}}; // PD5
+    // TODO: Need a better way to define this
+    uint8_t muxPins[3] = {4, 3, 2};
 
-    // LED shift register pins
-    Pin<unsigned char> SEVEN_SEG_LEDS[3] = {{0, 8, OUTPUT},   // PB0
-                                              {0, A4, OUTPUT},  // PC4
-                                              {0, A5, OUTPUT}}; // PC5
-
-    // Mux controller pins
-    Pin<unsigned char> MUX_CONTROLLER[3] = {{0, 4, OUTPUT},  // PD4
-                                              {0, 3, OUTPUT},  // PD3
-                                              {0, 2, OUTPUT}}; // PD2
-
-    // Analog Mux In
-    Pin<unsigned char> ANALOG_MUX_IN = {0, A0, INPUT}; // PC0
-
-    // Digital Mux In
-    Pin<unsigned char> DIGITAL_MUX_IN = {0, A2, INPUT}; // PC2
+    Mux analogMux = Mux(muxPins, A0, true, 8);
+    Mux digitalMux = Mux(muxPins, A2, false, 8);
   };
 
   void HardwareRead(messd_ins_t *ins, messd_outs_t *outs);
@@ -141,9 +127,6 @@ private:
   bool animateModulateButton = false;
   float animateModulateButtonTime = 0.0f;
 
-  uint16_t analogMuxOuts[8];
-  uint16_t digitalMuxOuts[8];
-
   // Storage for output shift register
   uint8_t output_sr_val[8];
   enum class OutputNames {
@@ -219,34 +202,6 @@ public:
     int DIVIDE_ENC_A = 6;
     int CLOCK_SWITCH = 7;
   } DigitalMux;
-
-  mux_t analog_mux = {{hardware.MUX_CONTROLLER[0].address,
-                       hardware.MUX_CONTROLLER[1].address,
-                       hardware.MUX_CONTROLLER[2].address},
-                      hardware.ANALOG_MUX_IN.address,
-                      true,
-                      analogMuxOuts,
-                      8};
-
-  mux_t digital_mux = {{hardware.MUX_CONTROLLER[0].address,
-                        hardware.MUX_CONTROLLER[1].address,
-                        hardware.MUX_CONTROLLER[2].address},
-                       hardware.DIGITAL_MUX_IN.address,
-                       false,
-                       digitalMuxOuts,
-                       8};
-  // Shift registers
-  shift_register_t seven_segment_sr = {hardware.SEVEN_SEG_REGISTER[0].address,
-                                       hardware.SEVEN_SEG_REGISTER[1].address,
-                                       hardware.SEVEN_SEG_REGISTER[2].address};
-
-  shift_register_t output_sr = {hardware.SEVEN_SEG_OUT[0].address,
-                                hardware.SEVEN_SEG_OUT[1].address,
-                                hardware.SEVEN_SEG_OUT[2].address};
-
-  shift_register_t leds_sr = {hardware.SEVEN_SEG_LEDS[0].address,
-                              hardware.SEVEN_SEG_LEDS[1].address,
-                              hardware.SEVEN_SEG_LEDS[2].address};
 
   encoder_t div_encoder = {HIGH, HIGH, 0};
   encoder_t beat_encoder = {HIGH, HIGH, 0};

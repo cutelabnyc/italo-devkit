@@ -74,9 +74,9 @@ void Module::_scaleValues() {
 }
 
 void Module::_processEncoders() {
-  int inc =
-      encoder_process(&beat_encoder, digital_mux.outputs[DigitalMux.BEAT_ENC_A],
-                      digital_mux.outputs[DigitalMux.BEAT_ENC_B]);
+  int inc = encoder_process(
+      &beat_encoder, hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_A),
+      hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_B));
   if (inc != 0) {
 
     // When you hold down the clock button, you set the tempo with the knobs
@@ -107,8 +107,8 @@ void Module::_processEncoders() {
     }
   }
   inc = encoder_process(&div_encoder,
-                        digital_mux.outputs[DigitalMux.DIVIDE_ENC_A],
-                        digital_mux.outputs[DigitalMux.DIVIDE_ENC_B]);
+                        hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_A),
+                        hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_B));
   if (inc != 0) {
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW) {
@@ -141,7 +141,7 @@ void Module::_processEncoders() {
 }
 
 void Module::_processTapTempo(float msDelta) {
-  int nextClockSwitch = digital_mux.outputs[DigitalMux.CLOCK_SWITCH];
+  int nextClockSwitch = hardware.digitalMux.getOutput(DigitalMux.CLOCK_SWITCH);
 
   if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
     unsigned long nextTapMicros = micros();
@@ -188,7 +188,8 @@ void Module::_processTapTempo(float msDelta) {
 }
 
 void Module::_processModSwitch(float msDelta) {
-  hardware.PinRead(hardware.MODSWITCH);
+  /* hardware.MODSWITCH.PinRead(); */
+  hardware.MODSWITCH.val = digitalRead(hardware.MODSWITCH.address);
 
   if (hardware.MODSWITCH.val == LOW) {
     this->modHoldTime += msDelta;
@@ -200,7 +201,7 @@ void Module::_processModSwitch(float msDelta) {
 
 void Module::_processBeatDivSwitches(float msDelta) {
   // div switch
-  if (digital_mux.outputs[DigitalMux.DIV_SWITCH] == LOW) {
+  if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
     if (div_switch_state_prev == HIGH) {
       initial_div_latch = div_latch;
       div_latch = !div_latch;
@@ -217,10 +218,10 @@ void Module::_processBeatDivSwitches(float msDelta) {
       inputClockDivDisplayTime = OTHER_DISPLAY_TIME + 1;
     divHoldTime = 0.0f;
   }
-  div_switch_state_prev = digital_mux.outputs[DigitalMux.DIV_SWITCH];
+  div_switch_state_prev = hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH);
 
   // beat switch
-  if (digital_mux.outputs[DigitalMux.BEAT_SWITCH] == LOW) {
+  if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
     if (beat_switch_state_prev == HIGH) {
       initial_beat_latch = beat_latch;
       beat_latch = !beat_latch;
@@ -240,7 +241,8 @@ void Module::_processBeatDivSwitches(float msDelta) {
     beatHoldTime = 0.0f;
     canSwtichBeatInputModes = true;
   }
-  beat_switch_state_prev = digital_mux.outputs[DigitalMux.BEAT_SWITCH];
+  beat_switch_state_prev =
+      hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH);
 }
 
 void Module::_display() {
@@ -361,7 +363,7 @@ void Module::_display() {
     break;
   }
 
-  seven_segment_process(&seven_segment_sr, digitCounter, value, decimal, colon);
+  hardware.sevenSegmentDisplay.process(digitCounter, value, decimal, colon);
 }
 
 void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){
@@ -380,18 +382,11 @@ void Module::initHardware() {
   this->eomBuffer = EOM_BUFFER_MS;
 
   // Analog read pin for the digital mux
-  hardware.PinInit(hardware.DIGITAL_MUX_IN);
+  /* hardware.DIGITAL_MUX_IN.PinInit(); */
 
   // Digital read for the dedicated mod switch pin
-  hardware.PinInit(hardware.MODSWITCH);
-
-  // Setting all of the shift register hardware.to be outputs
-  for (char i = 0; i < 3; i++) {
-    hardware.PinInit(hardware.SEVEN_SEG_REGISTER[i]);
-    hardware.PinInit(hardware.SEVEN_SEG_OUT[i]);
-    hardware.PinInit(hardware.SEVEN_SEG_LEDS[i]);
-    hardware.PinInit(hardware.MUX_CONTROLLER[i]);
-  }
+  /* hardware.MODSWITCH.PinInit(); */
+  pinMode(hardware.MODSWITCH.address, hardware.MODSWITCH.type);
 
   // Clock pins
   // TODO - make part of Hardware class (Does it really have to be global?)
@@ -420,10 +415,10 @@ void Module::process(float msDelta) {
 
   // Let's process the encoders as often as we can, basically after every big
   // operation
-  mux_process(&digital_mux);
+  hardware.digitalMux.process();
   _processEncoders();
 
-  mux_process(&analog_mux);
+  hardware.analogMux.process();
 
   _processTapTempo(msDelta);
   _processModSwitch(msDelta);
@@ -432,7 +427,7 @@ void Module::process(float msDelta) {
   // Remember to change this back when the beat input is working
   // Serial.println(this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT]);
   uint8_t beatInput =
-      this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] < 475 ? 1 : 0;
+      hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT) < 475 ? 1 : 0;
   uint8_t didReset = 0;
   this->ins.resetBeatCount = 0;
   if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
@@ -444,7 +439,7 @@ void Module::process(float msDelta) {
 
   // Compute the final value for subdivisions and beats based on modulation
   // inputs and attenuverters
-  int divInput = this->analog_mux.outputs[AnalogMux.DIVIDE_INPUT];
+  int divInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
   divInput += DIV_INPUT_CALIBRATION;
   divInput = max(0, min(MAX_VOLTAGE, divInput));
   float divOffset = 1.0f - (float)(divInput) / (float)MAX_VOLTAGE;
@@ -453,8 +448,9 @@ void Module::process(float msDelta) {
   divOffset *= 2.0f;
 #endif
 
-  float divAttenuvert = (float)this->analog_mux.outputs[AnalogMux.DIVIDE_ATV] /
-                        (float)MAX_VOLTAGE;
+  float divAttenuvert =
+      (float)hardware.analogMux.getOutput(AnalogMux.DIVIDE_ATV) /
+      (float)MAX_VOLTAGE;
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
   float divBase = (float)(this->state.div - beatsDivMin) /
                   (float)(beatsDivMax - beatsDivMin);
@@ -463,8 +459,9 @@ void Module::process(float msDelta) {
   state.activeDiv =
       round(finalDivNormalized * (beatsDivMax - beatsDivMin)) + beatsDivMin;
 
-  float beatsOffset = (float)this->analog_mux.outputs[AnalogMux.BEAT_INPUT] /
-                      (float)MAX_VOLTAGE;
+  float beatsOffset =
+      (float)hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT) /
+      (float)MAX_VOLTAGE;
 #ifndef IS_POWERED_FROM_ARDUINO
   beatsOffset -= 0.5f;
   beatsOffset *= 2.0f;
@@ -482,15 +479,15 @@ void Module::process(float msDelta) {
   this->ins.phase = 0; // unused
   this->ins.ext_clock = clockInput == HIGH;
   this->ins.modulationSignal =
-      this->analog_mux.outputs[AnalogMux.MOD_INPUT] > (MAX_VOLTAGE >> 1);
+      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) > (MAX_VOLTAGE >> 1);
   this->ins.modulationSwitch = this->modSwitch == LOW; // active low
   this->ins.latchBeatChangesToDownbeat = beat_latch;
   this->ins.latchDivChangesToDownbeat = div_latch;
   this->ins.latchModulationToDownbeat =
-      analog_mux.outputs[AnalogMux.LATCH_SWITCH] > (MAX_VOLTAGE >> 1);
+      hardware.analogMux.getOutput(AnalogMux.LATCH_SWITCH) > (MAX_VOLTAGE >> 1);
   this->ins.invert = 0; // unused
   this->ins.isRoundTrip =
-      analog_mux.outputs[AnalogMux.ROUND_SWITCH] < (MAX_VOLTAGE >> 1);
+      hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
 
   if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS && this->canTriggerReset) {
     this->ins.reset = true;
@@ -501,10 +498,10 @@ void Module::process(float msDelta) {
 
   // compute wrap
   float baseTruncation =
-      (float)this->analog_mux.outputs[AnalogMux.TRUNCATE_ATV] /
+      (float)hardware.analogMux.getOutput(AnalogMux.TRUNCATE_ATV) /
       (float)MAX_VOLTAGE;
   float truncationOffset =
-      1.0f - (float)this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT] /
+      1.0f - (float)hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT) /
                  (float)MAX_VOLTAGE;
 
   // Remember to remove this when the beat input is working again
@@ -555,7 +552,7 @@ void Module::process(float msDelta) {
   this->lastProcessTime = now;
   this->ins.delta = ((float)offset) / 1000.0;
 
-  mux_process(&digital_mux);
+  hardware.digitalMux.process();
   _processEncoders();
 
   MS_process(&this->messd, &this->ins, &this->outs);
@@ -679,7 +676,7 @@ void Module::process(float msDelta) {
     modButtonOn = true;
   }
 
-  mux_process(&digital_mux);
+  hardware.digitalMux.process();
   _processEncoders();
 
   // Configure outputs
@@ -699,7 +696,7 @@ void Module::process(float msDelta) {
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
       this->outs.beat ? LOW : HIGH;
   // about 100 msec
-  shift_register_process(&output_sr, this->output_sr_val, 8, true);
+  hardware.moduleOuts.process(this->output_sr_val, 8, true);
 
   // Configure LEDs
   bool beatLatchDisplay = this->beat_latch;
@@ -723,14 +720,14 @@ void Module::process(float msDelta) {
   leds_sr_val[(uint8_t)LEDNames::DivLatchLED] = divLatchDisplay ? LOW : HIGH;
 
   // about 100 msec
-  shift_register_process(&this->leds_sr, this->leds_sr_val, 8, true);
+  hardware.moduleLEDs.process(this->leds_sr_val, 8, true);
 
   this->scaledTempo = this->outs.scaledTempo;
 
   // about 400 msec
   _display();
 
-  mux_process(&digital_mux);
+  hardware.digitalMux.process();
   _processEncoders();
 
   this->eomBuffer += msDelta;

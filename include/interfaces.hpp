@@ -14,10 +14,14 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
-template <typename P> struct Pin {
-  P val;
+template <typename T> struct Pin {
+  T val;
   uint8_t address;
   uint8_t type; // should be ternary - INPUT OUTPUT PULLUP
+
+  void PinInit() { pinMode(this->address, this->type); };
+  void PinRead() { this->val = digitalRead(this->address); };
+  void PinWrite(T val) { digitalWrite(this->address, this->val); };
 };
 
 /**
@@ -29,15 +33,7 @@ private:
   virtual void HardwareWrite(I *ins, O *outs);
 
 public:
-  template <class T> class Hardware {
-  public:
-    template <typename P> void PinInit(Pin<P> pin) {
-      pinMode(pin.address, pin.type);
-    };
-    template <typename P> void PinRead(Pin<P> pin) {
-      pin.val = digitalRead(pin.address);
-    };
-  };
+  template <class T> class Hardware {};
 
   virtual void initHardware();
   virtual void process(float msDelta);
