@@ -31,6 +31,12 @@ private:
   messd_outs_t outs;
 
   class MessdUpHardware : public Hardware<MessdUpHardware> {
+  private:
+    // TODO: Put the actual pin addresses in their own header file so
+    // that we can define variations controlled by compiler flags to
+    // account for different chips
+    uint8_t muxPins[3] = {4, 3, 2};
+
   public:
     // Modulation switch gets its own dedicated pin
     Pin<unsigned char> MODSWITCH = {0, A3, INPUT};
@@ -43,11 +49,8 @@ private:
     SevenSegmentDisplay sevenSegmentDisplay =
         SevenSegmentDisplay(&sevenSegmentOuts);
 
-    // TODO: Need a better way to define this
-    uint8_t muxPins[3] = {4, 3, 2};
-
-    Mux analogMux = Mux(muxPins, A0, true, 8);
-    Mux digitalMux = Mux(muxPins, A2, false, 8);
+    Mux analogMux = Mux(muxPins, A0, true);
+    Mux digitalMux = Mux(muxPins, A2, false);
   };
 
   void HardwareRead(messd_ins_t *ins, messd_outs_t *outs);

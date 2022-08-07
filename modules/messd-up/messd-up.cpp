@@ -366,9 +366,7 @@ void Module::_display() {
   hardware.sevenSegmentDisplay.process(digitCounter, value, decimal, colon);
 }
 
-void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){
-
-};
+void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){};
 void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
 void Module::initHardware() {

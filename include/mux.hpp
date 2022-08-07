@@ -1,17 +1,19 @@
 #include <Arduino.h>
 #include <interfaces.hpp>
 
+#define MUXSIZE 8
+
 class Mux {
 private:
   Pin<uint8_t> selectors[3];
   Pin<uint8_t> input;
   bool isAnalog;
 
-  uint16_t *outputs;
+  uint16_t outputs[MUXSIZE];
   uint8_t size;
 
 public:
-  Mux(uint8_t selectors[3], uint8_t input, bool isAnalog, uint8_t muxSize) {
+  Mux(uint8_t selectors[3], uint8_t input, bool isAnalog) {
     for (int i = 0; i < 3; i++) {
       this->selectors[i] = {0, selectors[i], OUTPUT};
       pinMode(this->selectors[i].address, this->selectors[i].type);
@@ -20,8 +22,7 @@ public:
     pinMode(this->input.address, this->input.type);
 
     this->isAnalog = isAnalog;
-
-    outputs = (uint16_t *)malloc(sizeof(uint16_t) * muxSize);
+    this->size = 8;
   }
 
   void process(int offset = 0) {
