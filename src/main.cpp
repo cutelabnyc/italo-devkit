@@ -5,16 +5,18 @@
 #include "messd-up.hpp"
 #elif MISSED_OPPORTUNITIES
 #include "missed-opportunities.hpp"
+#elif PASS_THRU
+#include "pass-thru.hpp"
 #endif
 
 Module module;
 
-unsigned long time;
+unsigned long currenttime;
 float lastdelta = 0;
 
 void setup() {
   module.initHardware();
-  time = micros();
+  currenttime = micros();
 }
 
 /**
@@ -22,14 +24,14 @@ void setup() {
  * processing the data, and writing the output values.
  **/
 void loop() {
-  unsigned long nexttime = micros();
+  unsigned long nextcurrenttime = micros();
   float delta;
-  if (nexttime < time) {
-    delta = (4294967295 - time) + nexttime;
+  if (nextcurrenttime < currenttime) {
+    delta = (4294967295 - currenttime) + nextcurrenttime;
   } else {
-    delta = (float)(nexttime - time);
+    delta = (float)(nextcurrenttime - currenttime);
   }
   module.process(delta / 1000.0);
   lastdelta = delta;
-  time = nexttime;
+  currenttime = nextcurrenttime;
 }

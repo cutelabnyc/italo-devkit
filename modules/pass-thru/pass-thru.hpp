@@ -1,17 +1,19 @@
 #include <interfaces.hpp>
 #include <stdint.h>
 
-class Module : public ModuleInterface {
+typedef struct passthru_ins {
+	uint16_t test;
+} passthru_ins_t;
+
+typedef struct passthru_outs {
+	uint16_t test;
+} passthru_outs_t;
+
+class Module : public ModuleInterface<passthru_ins_t, passthru_outs_t> {
 private:
-  typedef struct passthru_t {
-    uint16_t dummy;
-  } passthru_t;
 
-  void PT_init(passthru_t *pt);
-  void PT_destroy(passthru_t *pt);
-
-  void PT_process(passthru_t *pt, uint16_t *in, uint16_t *out,
-                  uint8_t channel_count);
+  void HardwareRead(passthru_ins_t *ins, passthru_outs_t *outs);
+  void HardwareWrite(passthru_ins_t *ins, passthru_outs_t *outs);
 
 public:
   Module();

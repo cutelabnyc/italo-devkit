@@ -2,13 +2,17 @@
 
 static uint16_t magic = 42;
 
-void Module::PT_init(passthru_t *pt) { pt->dummy = magic; }
+Module::Module() {
 
-void Module::PT_destroy(passthru_t *pt) {}
+}
 
-void Module::PT_process(passthru_t *pt, uint16_t *in, uint16_t *out,
-                        uint8_t channel_count) {
-  for (uint8_t i = 0; i < channel_count; i++) {
-    out[i] = in[i];
-  }
+void Module::HardwareRead(passthru_ins_t *ins, passthru_outs_t *outs) {}
+void Module::HardwareWrite(passthru_ins_t *ins, passthru_outs_t *outs) {}
+
+void Module::initHardware() {
+
+}
+
+void Module::process(float msDelta) {
+
 }
