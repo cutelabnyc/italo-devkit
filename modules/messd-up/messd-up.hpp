@@ -24,6 +24,15 @@
 
 // #define IS_POWERED_FROM_ARDUINO
 
+// Use different hardware timer interface depending on whether we're running on atmega or rp2040
+#if ( defined(ARDUINO_NANO_RP2040_CONNECT) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || \
+      defined(ARDUINO_GENERIC_RP2040) ) && defined(ARDUINO_ARCH_MBED)
+  #define USING_MBED_RPI_PICO		true
+#else
+  #error "Somehow these defines aren't in place"
+  #define USING_MBED_RPI_PICO		false
+#endif
+
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
   messd_t messd;
@@ -44,7 +53,13 @@ private:
     // Shift register hardware (seven segment)
     ShiftRegister sevenSegmentOuts = ShiftRegister(11, 9, 10);
     ShiftRegister moduleOuts = ShiftRegister(7, 6, 5);
+
+	#if USING_MBED_RPI_PICO
+	// TODO: Figure out the actual pins to use
+	ShiftRegister moduleLEDs = ShiftRegister(8, 9, 9);
+	#else
     ShiftRegister moduleLEDs = ShiftRegister(8, A4, A5);
+	#endif
 
     SevenSegmentDisplay sevenSegmentDisplay =
         SevenSegmentDisplay(&sevenSegmentOuts);

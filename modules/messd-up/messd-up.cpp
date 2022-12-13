@@ -1,9 +1,17 @@
 #include "messd-up.hpp"
+#include "timers.hpp"
+
 #include <avr/interrupt.h>
 
-#define USE_TIMER_1 true
-#define USE_TIMER_2 true
-#include <TimerInterrupt.h>
+#if USING_MBED_RPI_PICO
+  #include "MBED_RPi_Pico_TimerInterrupt.h"
+
+  MBED_RPI_PICO_Timer ITimer0(0);
+#else
+  #define USE_TIMER_1 true
+  #define USE_TIMER_2 true
+  #include <TimerInterrupt.h>
+#endif
 
 // Got to be globals to work with the arduino timer. TODO: Figure out how to do
 // this on other platforms Internal clock
@@ -27,7 +35,7 @@ float lastTapTempoOut = 131.0;
 
 #define DIV_INPUT_CALIBRATION (-9)
 
-static void TimerHandler() {
+static TIMER_HEADER(TimerHandler)
   clockPhaseCounter++;
 
   if (clockPhaseCounter >= 100) {
@@ -40,10 +48,17 @@ static void TimerHandler() {
     float timerFreqHz = tapTempoOut * 100.0f /
                         30.0f; // double speed because it alternates at 2z Hz
     lastTapTempoOut = tapTempoOut;
+#if USING_MBED_RPI_PICO
+    ITimer0.setInterval(timerFreqHz * 1000, TimerHandler);
+#else
     ITimer1.setFrequency(timerFreqHz, TimerHandler);
+#endif
   }
-}
+TIMER_FOOTER()
 
+// TODO: Figure out how to use this interrupt pin on rp2040
+#if USING_MBED_RPI_PICO
+#else
 ISR(PCINT0_vect) {
   if (PINB & 0b00010000) {
     if (inputClockCounter == 0) {
@@ -58,6 +73,7 @@ ISR(PCINT0_vect) {
     lastClock = LOW;
   }
 }
+#endif
 
 void Module::_scaleValues() {
   this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
@@ -373,11 +389,15 @@ void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
 void Module::initHardware() {
 
-  // Enable interrupts for the clock input pin
+// Enable interrupts for the clock input pin
+// TODO: rp2040
+#if USING_MBED_RPI_PICO
+#else
   cli();
   PCICR |= 0b00000011;  // Enables Port B Pin Change Interrupts
   PCMSK0 |= 0b00010000; // PB4
   sei();
+#endif
 
   this->eomBuffer = EOM_BUFFER_MS;
 
@@ -402,9 +422,14 @@ void Module::initHardware() {
   float timerFreqHz = tapTempoOut * 100.0f /
                       30.0f; // double speed because it alternates at 2z Hz
 
+#if USING_MBED_RPI_PICO
+  ITimer0.attachInterruptInterval(tapTempoOut * 1000, TimerHandler);
+#else
   ITimer1.init();
   ITimer2.init();
   ITimer1.setFrequency(timerFreqHz, TimerHandler);
+#endif
+
 }
 
 Module::Module() { MS_init(&this->messd); };
