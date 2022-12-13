@@ -49,7 +49,7 @@ static TIMER_HEADER(TimerHandler)
                         30.0f; // double speed because it alternates at 2z Hz
     lastTapTempoOut = tapTempoOut;
 #if USING_MBED_RPI_PICO
-    ITimer0.setInterval(timerFreqHz * 1000, TimerHandler);
+    ITimer0.setFrequency(timerFreqHz, TimerHandler);
 #else
     ITimer1.setFrequency(timerFreqHz, TimerHandler);
 #endif
@@ -389,6 +389,11 @@ void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
 void Module::initHardware() {
 
+  Serial.begin(9600);
+
+  while (!Serial) {}
+  delay (100);
+
 // Enable interrupts for the clock input pin
 // TODO: rp2040
 #if USING_MBED_RPI_PICO
@@ -423,7 +428,7 @@ void Module::initHardware() {
                       30.0f; // double speed because it alternates at 2z Hz
 
 #if USING_MBED_RPI_PICO
-  ITimer0.attachInterruptInterval(tapTempoOut * 1000, TimerHandler);
+  ITimer0.attachInterrupt(timerFreqHz, TimerHandler);
 #else
   ITimer1.init();
   ITimer2.init();
@@ -435,6 +440,13 @@ void Module::initHardware() {
 Module::Module() { MS_init(&this->messd); };
 
 void Module::process(float msDelta) {
+
+  static uint8_t printedClockState = LOW;
+
+  if (printedClockState != lastInternalClockState) {
+    printedClockState = lastInternalClockState;
+    Serial.println(printedClockState);
+  }
 
   uint8_t clockInput = lastClock;
 

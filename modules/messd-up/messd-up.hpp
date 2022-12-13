@@ -55,8 +55,8 @@ private:
     ShiftRegister moduleOuts = ShiftRegister(7, 6, 5);
 
 	#if USING_MBED_RPI_PICO
-	// TODO: Figure out the actual pins to use
-	ShiftRegister moduleLEDs = ShiftRegister(8, 9, 9);
+	  // TODO: Figure out the actual pins to use
+	  ShiftRegister moduleLEDs = ShiftRegister(8, 9, 9);
 	#else
     ShiftRegister moduleLEDs = ShiftRegister(8, A4, A5);
 	#endif
