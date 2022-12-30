@@ -484,10 +484,12 @@ void Module::process(float msDelta) {
 
   // Compute the final value for subdivisions and beats based on modulation
   // inputs and attenuverters
-  static float divInputRange = (DIV_INPUT_MAX - DIV_INPUT_MIN);
+  static int divInputRange = (DIV_INPUT_MAX - DIV_INPUT_MIN);
+  static int divInputGrain = divInputRange / (beatsDivMax - beatsDivMin);
+  static int divInputMid = (divInputRange - DIV_INPUT_MIN) / 2 + DIV_INPUT_MIN;
   int divInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
   divInput = max(DIV_INPUT_MIN, min(DIV_INPUT_MAX, divInput));
-  float divOffset = 1.0f - (float)(divInput - DIV_INPUT_MIN) / (float)divInputRange;
+  divInput -= divInputMid;
 
   static float divAttenuvertRange = (DIV_ATV_MAX - DIV_ATV_MIN);
   int divAttenuvertInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_ATV);
@@ -495,12 +497,10 @@ void Module::process(float msDelta) {
   float divAttenuvert =
       (float)(divAttenuvertInput - DIV_ATV_MIN) / divAttenuvertRange;
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
-  float divBase = (float)(this->state.div - beatsDivMin) /
-                  (float)(beatsDivMax - beatsDivMin);
-  float finalDivNormalized =
-      fmax(0.0, fmin(1.0, divBase + divOffset * divAttenuvert));
-  state.activeDiv =
-      round(finalDivNormalized * (beatsDivMax - beatsDivMin)) + beatsDivMin;
+
+  int divOffset = (divInput *= divAttenuvert) / divInputGrain;
+  float divBase = this->state.div;
+  state.activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
 
   static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
   static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
