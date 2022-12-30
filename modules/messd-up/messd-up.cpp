@@ -218,6 +218,8 @@ void Module::_processModSwitch(float msDelta) {
     this->modHoldTime = 0;
     this->canTriggerReset = true;
   }
+
+  this->modSwitch = hardware.MODSWITCH.val;
 }
 
 void Module::_processBeatDivSwitches(float msDelta) {
