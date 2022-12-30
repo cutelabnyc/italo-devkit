@@ -16,8 +16,8 @@
 
 // Got to be globals to work with the arduino timer. TODO: Figure out how to do
 // this on other platforms Internal clock
-int clockIn = CLK_IN_TN_A;
-int clockOut = CLK_IN_A;
+int clockIn = CLK_IN_A;
+int clockOut = CLK_IN_TN_A;
 
 // More accurate input clock high detection
 volatile uint8_t lastInternalClockState = LOW;
@@ -59,9 +59,12 @@ TIMER_FOOTER()
 
 // TODO: Figure out how to use this interrupt pin on rp2040
 #if USING_MBED_RPI_PICO
+void clockPinInterrupt() {
+  if (digitalRead(clockIn)) {
 #else
 ISR(PCINT0_vect) {
   if (PINB & 0b00010000) {
+#endif
     if (inputClockCounter == 0) {
       lastHighClockTime = micros();
       lastClock = HIGH;
@@ -74,7 +77,6 @@ ISR(PCINT0_vect) {
     lastClock = LOW;
   }
 }
-#endif
 
 void Module::_scaleValues() {
   this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
@@ -398,6 +400,7 @@ void Module::initHardware() {
 // Enable interrupts for the clock input pin
 // TODO: rp2040
 #if USING_MBED_RPI_PICO
+  attachInterrupt(digitalPinToInterrupt(clockIn), &clockPinInterrupt, CHANGE);
 #else
   cli();
   PCICR |= 0b00000011;  // Enables Port B Pin Change Interrupts
