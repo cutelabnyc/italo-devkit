@@ -16,7 +16,7 @@ enum SpecialDigits {
   Equals = 20
 };
 
-const int digitDisplay[21][8]{
+const int displayKey[21][8]{
     // NUMBERS
     {1, 1, 1, 1, 1, 0, 1, 0}, // ZERO
     {0, 0, 1, 0, 0, 0, 1, 0}, // ONE
@@ -46,10 +46,14 @@ const int digitDisplay[21][8]{
 class SevenSegmentDisplay {
 private:
   ShiftRegister *shiftRegister;
+  int outputPermutation[8];
 
 public:
-  SevenSegmentDisplay(ShiftRegister *shiftRegister) {
+  SevenSegmentDisplay(ShiftRegister *shiftRegister, const int perm[8]) {
     this->shiftRegister = shiftRegister;
+    for (int i = 0; i < 8; i++) {
+      outputPermutation[i] = perm[i];
+    }
   };
 
   void process(uint8_t indexToWrite, uint8_t valueToWrite, uint8_t decimal,
@@ -62,7 +66,7 @@ public:
       writeHigh |= (i == 6) && decimal;
       writeHigh |= (i == 4) && colon;
       bitsToWrite[7 - i] = (writeHigh ? HIGH : LOW);
-      bitsToWrite[15 - i] = digitDisplay[valueToWrite][i];
+      bitsToWrite[15 - i] = displayKey[valueToWrite][outputPermutation[i]];
     }
 
     shiftRegister->process(bitsToWrite, 16, false);

@@ -32,6 +32,10 @@ public:
         digitalWrite(this->selectors[j].address, bitRead(oi, j));
       }
 
+      // Very small delay, apparently absolutely necessary in order to get
+      // an accurate reading
+      delayMicroseconds(1);
+
       this->outputs[oi] = this->isAnalog ? analogRead(this->input.address)
                                          : digitalRead(this->input.address);
     }

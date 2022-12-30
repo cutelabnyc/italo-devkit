@@ -13,7 +13,7 @@ public:
     this->direction = direction;
   }
 
-  uint16_t process(int pin1, int pin2) {
+  int8_t process(int pin1, int pin2) {
     int retval = 0;
     if (pin1 == LOW && this->lastPin1 == HIGH) {
       if (this->direction == 0) {

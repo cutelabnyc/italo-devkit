@@ -1,5 +1,6 @@
 #include "messd-up.hpp"
 #include "timers.hpp"
+#include "voltages.hpp"
 
 #include <avr/interrupt.h>
 
@@ -15,8 +16,8 @@
 
 // Got to be globals to work with the arduino timer. TODO: Figure out how to do
 // this on other platforms Internal clock
-int clockIn = 12;  // PB4
-int clockOut = A1; // PC1
+int clockIn = CLK_IN_TN_A;
+int clockOut = CLK_IN_A;
 
 // More accurate input clock high detection
 volatile uint8_t lastInternalClockState = LOW;
@@ -245,10 +246,10 @@ void Module::_processBeatDivSwitches(float msDelta) {
       beat_latch = !beat_latch;
     } else {
       beatHoldTime += msDelta;
-      if (canSwtichBeatInputModes && beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
+      if (canSwitchBeatInputModes && beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
         beat_latch = initial_beat_latch;
         beatInputResetMode = !beatInputResetMode;
-        canSwtichBeatInputModes = false;
+        canSwitchBeatInputModes = false;
         beatModeDisplayTime = 0.0f;
       }
     }
@@ -257,7 +258,7 @@ void Module::_processBeatDivSwitches(float msDelta) {
     if (beatModeDisplayTime > OTHER_DISPLAY_TIME + 1)
       beatModeDisplayTime = OTHER_DISPLAY_TIME + 1;
     beatHoldTime = 0.0f;
-    canSwtichBeatInputModes = true;
+    canSwitchBeatInputModes = true;
   }
   beat_switch_state_prev =
       hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH);
@@ -429,6 +430,9 @@ void Module::initHardware() {
 
 #if USING_MBED_RPI_PICO
   ITimer0.attachInterrupt(timerFreqHz, TimerHandler);
+
+  _display();
+
 #else
   ITimer1.init();
   ITimer2.init();
@@ -441,18 +445,12 @@ Module::Module() { MS_init(&this->messd); };
 
 void Module::process(float msDelta) {
 
-  static uint8_t printedClockState = LOW;
-
-  if (printedClockState != lastInternalClockState) {
-    printedClockState = lastInternalClockState;
-    Serial.println(printedClockState);
-  }
-
   uint8_t clockInput = lastClock;
 
   // Let's process the encoders as often as we can, basically after every big
   // operation
   hardware.digitalMux.process();
+
   _processEncoders();
 
   hardware.analogMux.process();
@@ -461,10 +459,15 @@ void Module::process(float msDelta) {
   _processModSwitch(msDelta);
   _processBeatDivSwitches(msDelta);
 
-  // Remember to change this back when the beat input is working
-  // Serial.println(this->analog_mux.outputs[AnalogMux.TRUNCATE_INPUT]);
+  // for (int i = 0; i < 8; i++) {
+  //   if (i != 0) Serial.print(",\t");
+  //   Serial.print(hardware.analogMux.getOutput(i));
+  // }
+  // Serial.println();
+
+  static int beatInputMid = (BEAT_INPUT_MAX + BEAT_INPUT_MIN) / 2;
   uint8_t beatInput =
-      hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT) < 475 ? 1 : 0;
+      hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT) < beatInputMid ? 1 : 0;
   uint8_t didReset = 0;
   this->ins.resetBeatCount = 0;
   if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
@@ -476,18 +479,16 @@ void Module::process(float msDelta) {
 
   // Compute the final value for subdivisions and beats based on modulation
   // inputs and attenuverters
+  static float divInputRange = (DIV_INPUT_MAX - DIV_INPUT_MIN);
   int divInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
-  divInput += DIV_INPUT_CALIBRATION;
-  divInput = max(0, min(MAX_VOLTAGE, divInput));
-  float divOffset = 1.0f - (float)(divInput) / (float)MAX_VOLTAGE;
-#ifndef IS_POWERED_FROM_ARDUINO
-  divOffset -= 0.5f;
-  divOffset *= 2.0f;
-#endif
+  divInput = max(DIV_INPUT_MIN, min(DIV_INPUT_MAX, divInput));
+  float divOffset = 1.0f - (float)(divInput - DIV_INPUT_MIN) / (float)divInputRange;
 
+  static float divAttenuvertRange = (DIV_ATV_MAX - DIV_ATV_MIN);
+  int divAttenuvertInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_ATV);
+  divAttenuvertInput = max(DIV_ATV_MIN, min(DIV_ATV_MAX, divInput));
   float divAttenuvert =
-      (float)hardware.analogMux.getOutput(AnalogMux.DIVIDE_ATV) /
-      (float)MAX_VOLTAGE;
+      (float)(divAttenuvertInput - DIV_ATV_MIN) / divAttenuvertRange;
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
   float divBase = (float)(this->state.div - beatsDivMin) /
                   (float)(beatsDivMax - beatsDivMin);
@@ -496,35 +497,39 @@ void Module::process(float msDelta) {
   state.activeDiv =
       round(finalDivNormalized * (beatsDivMax - beatsDivMin)) + beatsDivMin;
 
-  float beatsOffset =
-      (float)hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT) /
-      (float)MAX_VOLTAGE;
-#ifndef IS_POWERED_FROM_ARDUINO
-  beatsOffset -= 0.5f;
-  beatsOffset *= 2.0f;
-#endif
-  beatsOffset = 0.0; // debug
-  float beatsBase = (float)(this->state.beats - beatsDivMin) /
-                    (float)(beatsDivMax - beatsDivMin);
-  float finalBeatsNormalized = fmax(0.0, fmin(1.0, beatsBase + beatsOffset));
-  state.activeBeats =
-      round(finalBeatsNormalized * (beatsDivMax - beatsDivMin)) + beatsDivMin;
+  static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
+  static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
+  int beatSigInput = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
+  beatSigInput = max(BEAT_INPUT_MIN, min(BEAT_INPUT_MAX, beatSigInput));
+  beatSigInput -= beatInputMid;
+  int beatsOffset = beatSigInput / beatInputGrain;
+  int beatsBase = this->state.beats;
+  state.activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
   this->ins.tempo = tapTempoOut;
   this->ins.beatsPerMeasure = state.activeBeats;
   this->ins.subdivisionsPerMeasure = state.activeDiv;
   this->ins.phase = 0; // unused
   this->ins.ext_clock = clockInput == HIGH;
+
+  static int modInputMid = (MOD_INPUT_MAX + MOD_INPUT_MIN) / 2;
   this->ins.modulationSignal =
-      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) > (MAX_VOLTAGE >> 1);
+      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) > modInputMid ? 1 : 0;
   this->ins.modulationSwitch = this->modSwitch == LOW; // active low
   this->ins.latchBeatChangesToDownbeat = beat_latch;
   this->ins.latchDivChangesToDownbeat = div_latch;
+
+  // TODO: Get this working after Max solders on the resistors
   this->ins.latchModulationToDownbeat =
       hardware.analogMux.getOutput(AnalogMux.LATCH_SWITCH) > (MAX_VOLTAGE >> 1);
   this->ins.invert = 0; // unused
   this->ins.isRoundTrip =
       hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
+
+  // Temporary: Set the values of the switches explicitly, until we figure
+  // out what's going on with the hardware.
+  this->ins.latchModulationToDownbeat = 1;
+  this->ins.isRoundTrip = 1;
 
   if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS && this->canTriggerReset) {
     this->ins.reset = true;
@@ -534,18 +539,18 @@ void Module::process(float msDelta) {
   }
 
   // compute wrap
+  static int truncAttenuverterRange = (TRUNC_ATV_MAX - TRUNC_ATV_MIN);
+  static int truncInputRange = (TRUNC_INPUT_MAX - TRUNC_INPUT_MIN);
+  int truncAttenuverterInput = hardware.analogMux.getOutput(AnalogMux.TRUNCATE_ATV);
+  truncAttenuverterInput = min(TRUNC_ATV_MAX, max(TRUNC_ATV_MIN, truncAttenuverterInput));
   float baseTruncation =
-      (float)hardware.analogMux.getOutput(AnalogMux.TRUNCATE_ATV) /
-      (float)MAX_VOLTAGE;
+      (float)(truncAttenuverterInput - TRUNC_ATV_MIN) /
+      (float)truncAttenuverterRange;
+  int truncationInput = hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT);
+  truncationInput = min(TRUNC_ATV_MAX, max(TRUNC_ATV_MIN, truncationInput));
   float truncationOffset =
-      1.0f - (float)hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT) /
-                 (float)MAX_VOLTAGE;
-
-  // Remember to remove this when the beat input is working again
-  if (beatInputResetMode) {
-    truncationOffset = 0.5; // disable the truncation functionality of this
-                            // input when in beat reset mode
-  }
+      1.0f - (float)(truncationInput - TRUNC_ATV_MIN) /
+                 (float)truncInputRange;
 
 #ifndef IS_POWERED_FROM_ARDUINO
   truncationOffset -= 0.5f;
@@ -733,6 +738,12 @@ void Module::process(float msDelta) {
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
       this->outs.beat ? LOW : HIGH;
   // about 100 msec
+
+  // for (int i = 0; i < 8; i++) {
+  //   if (i != 0) Serial.print(", ");
+  //   Serial.print(output_sr_val[i]);
+  // }
+  // Serial.print("\n");
   hardware.moduleOuts.process(this->output_sr_val, 8, true);
 
   // Configure LEDs
@@ -757,6 +768,11 @@ void Module::process(float msDelta) {
   leds_sr_val[(uint8_t)LEDNames::DivLatchLED] = divLatchDisplay ? LOW : HIGH;
 
   // about 100 msec
+  // for (int i = 0; i < 8; i++) {
+  //   if (i != 0) Serial.print(", ");
+  //   Serial.print(leds_sr_val[i]);
+  // }
+  // Serial.println();
   hardware.moduleLEDs.process(this->leds_sr_val, 8, true);
 
   this->scaledTempo = this->outs.scaledTempo;

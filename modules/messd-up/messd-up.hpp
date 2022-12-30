@@ -6,6 +6,17 @@
 #include <Arduino.h>
 #include <cutemodules.h>
 
+// Use different hardware timer interface depending on whether we're running on atmega or rp2040
+#if ( defined(ARDUINO_NANO_RP2040_CONNECT) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || \
+      defined(ARDUINO_GENERIC_RP2040) ) && defined(ARDUINO_ARCH_MBED)
+  #define USING_MBED_RPI_PICO		true
+#else
+  #error "Somehow these defines aren't in place"
+  #define USING_MBED_RPI_PICO		false
+#endif
+
+#include "pins.hpp"
+
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MS (10)
 #define EOM_LED_BUFFER_MS (250)
@@ -24,15 +35,6 @@
 
 // #define IS_POWERED_FROM_ARDUINO
 
-// Use different hardware timer interface depending on whether we're running on atmega or rp2040
-#if ( defined(ARDUINO_NANO_RP2040_CONNECT) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || \
-      defined(ARDUINO_GENERIC_RP2040) ) && defined(ARDUINO_ARCH_MBED)
-  #define USING_MBED_RPI_PICO		true
-#else
-  #error "Somehow these defines aren't in place"
-  #define USING_MBED_RPI_PICO		false
-#endif
-
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
   messd_t messd;
@@ -41,31 +43,22 @@ private:
 
   class MessdUpHardware : public Hardware<MessdUpHardware> {
   private:
-    // TODO: Put the actual pin addresses in their own header file so
-    // that we can define variations controlled by compiler flags to
-    // account for different chips
-    uint8_t muxPins[3] = {4, 3, 2};
+    uint8_t muxPins[3] = {MUX_S0, MUX_S1, MUX_S2};
 
   public:
     // Modulation switch gets its own dedicated pin
-    Pin<unsigned char> MODSWITCH = {0, A3, INPUT};
+    Pin<unsigned char> MODSWITCH = {0, MOD_SW, INPUT};
 
     // Shift register hardware (seven segment)
-    ShiftRegister sevenSegmentOuts = ShiftRegister(11, 9, 10);
-    ShiftRegister moduleOuts = ShiftRegister(7, 6, 5);
-
-	#if USING_MBED_RPI_PICO
-	  // TODO: Figure out the actual pins to use
-	  ShiftRegister moduleLEDs = ShiftRegister(8, 9, 9);
-	#else
-    ShiftRegister moduleLEDs = ShiftRegister(8, A4, A5);
-	#endif
+    ShiftRegister sevenSegmentOuts = ShiftRegister(SSEG_DS, SSEG_STCP, SSEG_SHCP);
+    ShiftRegister moduleOuts = ShiftRegister(OUTS_DS, OUTS_STCP, OUTS_SHCP);
+    ShiftRegister moduleLEDs = ShiftRegister(LEDS_DS, LEDS_STCP, LEDS_SHCP);
 
     SevenSegmentDisplay sevenSegmentDisplay =
-        SevenSegmentDisplay(&sevenSegmentOuts);
+        SevenSegmentDisplay(&sevenSegmentOuts, SHIFT_PERMUTATION);
 
-    Mux analogMux = Mux(muxPins, A0, true);
-    Mux digitalMux = Mux(muxPins, A2, false);
+    Mux analogMux = Mux(muxPins, MUX_1_COM, true);
+    Mux digitalMux = Mux(muxPins, MUX_2_COM, false);
 
     Encoder div = Encoder(HIGH, HIGH, 0);
     Encoder beat = Encoder(HIGH, HIGH, 0);
@@ -157,8 +150,8 @@ private:
     EoMOutput,
     TruncateOutput,
     DivOutput,
-    DownbeatOutput,
-    BeatOutput
+    BeatOutput,
+    DownbeatOutput
   };
 
   // Storage for LED shift register
@@ -167,8 +160,8 @@ private:
     ModLEDButton = 0,
     EoMLED,
     ClockLEDButton,
-    DownbeatLED,
     BeatLED,
+    DownbeatLED,
     BeatLatchLED,
     DivLatchLED,
     Nothing
@@ -181,7 +174,7 @@ private:
   uint8_t initial_beat_latch = 0;
   uint8_t beat_switch_state_prev = 0;
   uint8_t div_switch_state_prev = 0;
-  uint8_t canSwtichBeatInputModes = 1;
+  uint8_t canSwitchBeatInputModes = 0;
   float latchPulseTimer = 0.0f;
 
   void _scaleValues();
@@ -202,6 +195,18 @@ public:
     int activeDiv = 7;
   } state;
 
+#if (USING_MBED_RPI_PICO)
+  struct AnalogMux {
+    int BEAT_INPUT = 0;
+    int TRUNCATE_ATV = 1;
+    int LATCH_SWITCH = 2;
+    int DIVIDE_ATV = 3;
+    int ROUND_SWITCH = 4;
+    int DIVIDE_INPUT = 5;
+    int MOD_INPUT = 6;
+    int TRUNCATE_INPUT = 7;
+  } AnalogMux;
+#else
   struct AnalogMux {
     int DIVIDE_ATV = 0;
     int TRUNCATE_ATV = 1;
@@ -212,7 +217,7 @@ public:
     int MOD_INPUT = 6;
     int TRUNCATE_INPUT = 7;
   } AnalogMux;
-
+#endif
   struct DigitalMux {
     int BEAT_ENC_A = 0;
     int BEAT_ENC_B = 1;
