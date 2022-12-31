@@ -31,7 +31,8 @@ void loop() {
   } else {
     delta = (float)(nextcurrenttime - currenttime);
   }
-  module.process(delta / 1000.0);
+
+  module.process(delta);
   lastdelta = delta;
   currenttime = nextcurrenttime;
 }

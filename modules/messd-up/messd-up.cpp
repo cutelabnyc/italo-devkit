@@ -161,7 +161,7 @@ void Module::_processEncoders() {
   }
 }
 
-void Module::_processTapTempo(float msDelta) {
+void Module::_processTapTempo(float microsDelta) {
   int nextClockSwitch = hardware.digitalMux.getOutput(DigitalMux.CLOCK_SWITCH);
 
   if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
@@ -196,7 +196,7 @@ void Module::_processTapTempo(float msDelta) {
   }
 
   if (nextClockSwitch != LOW) {
-    this->tempoDisplayTime += msDelta;
+    this->tempoDisplayTime += microsDelta;
     if (this->tempoDisplayTime > TEMPO_DISPLAY_TIME * 2) {
       this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
     }
@@ -208,12 +208,12 @@ void Module::_processTapTempo(float msDelta) {
   this->clockSwitch = nextClockSwitch;
 }
 
-void Module::_processModSwitch(float msDelta) {
+void Module::_processModSwitch(float microsDelta) {
   /* hardware.MODSWITCH.PinRead(); */
   hardware.MODSWITCH.val = digitalRead(hardware.MODSWITCH.address);
 
   if (hardware.MODSWITCH.val == LOW) {
-    this->modHoldTime += msDelta;
+    this->modHoldTime += microsDelta;
   } else {
     this->modHoldTime = 0;
     this->canTriggerReset = true;
@@ -222,21 +222,21 @@ void Module::_processModSwitch(float msDelta) {
   this->modSwitch = hardware.MODSWITCH.val;
 }
 
-void Module::_processBeatDivSwitches(float msDelta) {
+void Module::_processBeatDivSwitches(float microsDelta) {
   // div switch
   if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
     if (div_switch_state_prev == HIGH) {
       initial_div_latch = div_latch;
       div_latch = !div_latch;
     } else {
-      divHoldTime += msDelta;
+      divHoldTime += microsDelta;
       if (divHoldTime >= DIV_BUTTON_HOLD_TIME) {
         div_latch = initial_div_latch;
         inputClockDivDisplayTime = 0.0f;
       }
     }
   } else {
-    inputClockDivDisplayTime += msDelta;
+    inputClockDivDisplayTime += microsDelta;
     if (inputClockDivDisplayTime > OTHER_DISPLAY_TIME + 1)
       inputClockDivDisplayTime = OTHER_DISPLAY_TIME + 1;
     divHoldTime = 0.0f;
@@ -249,7 +249,7 @@ void Module::_processBeatDivSwitches(float msDelta) {
       initial_beat_latch = beat_latch;
       beat_latch = !beat_latch;
     } else {
-      beatHoldTime += msDelta;
+      beatHoldTime += microsDelta;
       if (canSwitchBeatInputModes && beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
         beat_latch = initial_beat_latch;
         beatInputResetMode = !beatInputResetMode;
@@ -258,7 +258,7 @@ void Module::_processBeatDivSwitches(float msDelta) {
       }
     }
   } else {
-    beatModeDisplayTime += msDelta;
+    beatModeDisplayTime += microsDelta;
     if (beatModeDisplayTime > OTHER_DISPLAY_TIME + 1)
       beatModeDisplayTime = OTHER_DISPLAY_TIME + 1;
     beatHoldTime = 0.0f;
@@ -294,7 +294,7 @@ void Module::_display() {
     colon = true;
   } else if (this->beatModeDisplayTime < OTHER_DISPLAY_TIME) {
     this->displayState = DisplayState::BeatMode;
-  } else if (this->countdownDisplayTime < COUNTDOWN_DISPLAY_TIME) {
+  } else if (this->countdownDisplayTime < COUNTDOWN_DISPLAY_TIME && this->messd.modulationPending) {
     this->displayState = DisplayState::Countdown;
   } else if (this->beatsEqualsDivDisplayTime < OTHER_DISPLAY_TIME) {
     this->displayState = DisplayState::BeatsEqualDivs;
@@ -410,7 +410,7 @@ void Module::initHardware() {
   sei();
 #endif
 
-  this->eomBuffer = EOM_BUFFER_MS;
+  this->eomBuffer = EOM_BUFFER_MICROS;
 
   // Analog read pin for the digital mux
   /* hardware.DIGITAL_MUX_IN.PinInit(); */
@@ -448,7 +448,7 @@ void Module::initHardware() {
 
 Module::Module() { MS_init(&this->messd); };
 
-void Module::process(float msDelta) {
+void Module::process(float microsDelta) {
 
   uint8_t clockInput = lastClock;
 
@@ -460,9 +460,9 @@ void Module::process(float msDelta) {
 
   hardware.analogMux.process();
 
-  _processTapTempo(msDelta);
-  _processModSwitch(msDelta);
-  _processBeatDivSwitches(msDelta);
+  _processTapTempo(microsDelta);
+  _processModSwitch(microsDelta);
+  _processBeatDivSwitches(microsDelta);
 
   // for (int i = 0; i < 8; i++) {
   //   if (i != 0) Serial.print(",\t");
@@ -536,7 +536,7 @@ void Module::process(float msDelta) {
   this->ins.latchModulationToDownbeat = 1;
   this->ins.isRoundTrip = 1;
 
-  if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MS && this->canTriggerReset) {
+  if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MICROS && this->canTriggerReset) {
     this->ins.reset = true;
     this->canTriggerReset = false;
   } else {
@@ -643,7 +643,7 @@ void Module::process(float msDelta) {
       this->countdownSampleAndHold = this->outs.countdown;
     }
   }
-  this->countdownDisplayTime += msDelta;
+  this->countdownDisplayTime += microsDelta;
   this->countdownDisplayTime =
       min(this->countdownDisplayTime, COUNTDOWN_DISPLAY_TIME);
   this->lastDownbeat = this->outs.downbeat;
@@ -714,7 +714,7 @@ void Module::process(float msDelta) {
     modButtonOn = this->modButtonFlashCount % 2 > 0;
   } else if (this->outs.modulationPending) {
     modButtonOn = this->animateModulateButtonTime < MOD_BUTTON_STROBE_SLOW;
-    this->animateModulateButtonTime += msDelta;
+    this->animateModulateButtonTime += microsDelta;
     if (this->animateModulateButtonTime > (2.0f * MOD_BUTTON_STROBE_SLOW)) {
       this->animateModulateButtonTime = fmodf(this->animateModulateButtonTime,
                                               (2.0f * MOD_BUTTON_STROBE_SLOW));
@@ -733,7 +733,7 @@ void Module::process(float msDelta) {
   output_sr_val[(uint8_t)OutputNames::DivLED] =
       this->outs.subdivision ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::EoMOutput] =
-      this->eomBuffer < EOM_BUFFER_MS ? LOW : HIGH;
+      this->eomBuffer < EOM_BUFFER_MICROS ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::TruncateOutput] =
       this->outs.truncate ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::DivOutput] =
@@ -763,7 +763,7 @@ void Module::process(float msDelta) {
   leds_sr_val[(uint8_t)LEDNames::Nothing] = HIGH;
   leds_sr_val[(uint8_t)LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::EoMLED] =
-      this->eomBuffer < EOM_LED_BUFFER_MS ? LOW : HIGH;
+      this->eomBuffer < EOM_LED_BUFFER_MICROS ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::ClockLEDButton] =
       clockInput == HIGH ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::DownbeatLED] =
@@ -788,16 +788,16 @@ void Module::process(float msDelta) {
   hardware.digitalMux.process();
   _processEncoders();
 
-  this->eomBuffer += msDelta;
+  this->eomBuffer += microsDelta;
   if (this->eomBuffer > 5000000)
     this->eomBuffer = 5000000;
-  this->latchPulseTimer += msDelta;
+  this->latchPulseTimer += microsDelta;
   if (this->latchPulseTimer > LATCH_PULSE_TIME) {
     this->latchPulseTimer = fmod(this->latchPulseTimer, LATCH_PULSE_TIME);
   }
 
   if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
-    this->modButtonFlashTimer += msDelta;
+    this->modButtonFlashTimer += microsDelta;
     if (this->modButtonFlashTimer > MOD_BUTTON_FLASH_TIME) {
       this->modButtonFlashCount++;
       this->modButtonFlashTimer =
@@ -807,7 +807,7 @@ void Module::process(float msDelta) {
     }
   }
 
-  this->beatsEqualsDivDisplayTime += msDelta;
+  this->beatsEqualsDivDisplayTime += microsDelta;
   if (this->beatsEqualsDivDisplayTime > OTHER_DISPLAY_TIME + 1)
     this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME + 1;
 };

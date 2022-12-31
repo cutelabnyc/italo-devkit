@@ -18,20 +18,20 @@
 #include "pins.hpp"
 
 #define MAX_VOLTAGE (1023)
-#define EOM_BUFFER_MS (10)
-#define EOM_LED_BUFFER_MS (250)
-#define MOD_BUTTON_FLASH_TIME (75)
+#define EOM_BUFFER_MICROS (10000)
+#define EOM_LED_BUFFER_MICROS (250000)
+#define MOD_BUTTON_FLASH_TIME (75000)
 #define MOD_BUTTON_FLASH_COUNT                                                 \
   (4) // To make this a bit easier to code, this should always be 2x the number
       // of flashes you want
-#define MOD_BUTTON_STROBE_SLOW (250)
-#define MOD_BUTTON_RESET_TIME_MS (2000)
-#define TEMPO_DISPLAY_TIME (2000)
-#define OTHER_DISPLAY_TIME (2000)
-#define DIV_BUTTON_HOLD_TIME (2000)
-#define BEAT_BUTTON_HOLD_TIME (2000)
-#define COUNTDOWN_DISPLAY_TIME (500)
-#define LATCH_PULSE_TIME (500)
+#define MOD_BUTTON_STROBE_SLOW (250000)
+#define MOD_BUTTON_RESET_TIME_MICROS (2000000)
+#define TEMPO_DISPLAY_TIME (2000000)
+#define OTHER_DISPLAY_TIME (2000000)
+#define DIV_BUTTON_HOLD_TIME (2000000)
+#define BEAT_BUTTON_HOLD_TIME (2000000)
+#define COUNTDOWN_DISPLAY_TIME (500000)
+#define LATCH_PULSE_TIME (500000)
 
 // #define IS_POWERED_FROM_ARDUINO
 
@@ -111,7 +111,7 @@ private:
   float scaledTempo = 120.0f;
   unsigned long lastTapMicros = 0;
   unsigned char totalTaps = 0;
-  uint16_t tempoDisplayTime = TEMPO_DISPLAY_TIME;
+  uint32_t tempoDisplayTime = TEMPO_DISPLAY_TIME;
 
   // Storage for the modulation switch
   uint8_t modSwitch = HIGH; // active low
@@ -121,20 +121,20 @@ private:
   uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
   float modButtonFlashTimer = 0.0f;
   uint8_t modulationButtonIgnored = 0;
-  uint16_t beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
+  uint32_t beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
 
   // Holding down the div encoder switch
   float divHoldTime = 0.0;
-  uint16_t inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
+  uint32_t inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
 
   // Holding down the beat encoder switch
   float beatHoldTime = 0.0;
-  uint16_t beatModeDisplayTime = OTHER_DISPLAY_TIME;
+  uint32_t beatModeDisplayTime = OTHER_DISPLAY_TIME;
   uint8_t lastBeatInputValue = 0;
 
   // Countdown display
   uint8_t lastDownbeat = false;
-  uint16_t countdownDisplayTime = COUNTDOWN_DISPLAY_TIME;
+  uint32_t countdownDisplayTime = COUNTDOWN_DISPLAY_TIME;
   uint16_t countdownSampleAndHold = 0;
 
   // Storage for animations on the modulate button
