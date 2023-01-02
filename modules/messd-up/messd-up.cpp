@@ -470,6 +470,8 @@ void Module::process(float microsDelta) {
   // }
   // Serial.println();
 
+  // return;
+
   static int beatInputMid = (BEAT_INPUT_MAX + BEAT_INPUT_MIN) / 2;
   uint8_t beatInput =
       hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT) < beatInputMid ? 1 : 0;
@@ -530,11 +532,6 @@ void Module::process(float microsDelta) {
   this->ins.invert = 0; // unused
   this->ins.isRoundTrip =
       hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
-
-  // Temporary: Set the values of the switches explicitly, until we figure
-  // out what's going on with the hardware.
-  this->ins.latchModulationToDownbeat = 1;
-  this->ins.isRoundTrip = 1;
 
   if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MICROS && this->canTriggerReset) {
     this->ins.reset = true;
