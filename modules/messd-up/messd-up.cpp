@@ -396,8 +396,8 @@ void Module::initHardware() {
 
   Serial.begin(9600);
 
-  while (!Serial) {}
-  delay (100);
+  // while (!Serial) {}
+  // delay (100);
 
 // Enable interrupts for the clock input pin
 // TODO: rp2040
