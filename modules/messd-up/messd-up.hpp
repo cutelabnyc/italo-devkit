@@ -199,9 +199,9 @@ public:
   struct AnalogMux {
     int BEAT_INPUT = 0;
     int TRUNCATE_ATV = 1;
-    int LATCH_SWITCH = 2;
+    int ROUND_SWITCH = 2;
     int DIVIDE_ATV = 3;
-    int ROUND_SWITCH = 4;
+    int LATCH_SWITCH = 4;
     int DIVIDE_INPUT = 5;
     int MOD_INPUT = 6;
     int TRUNCATE_INPUT = 7;
