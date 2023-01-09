@@ -12,7 +12,7 @@
 #define SSEG_STCP   p5
 #define SSEG_SHCP   p6
 #define SSEG_DS     p3
-#define CLK_IN_TN_A p0
+#define CLK_JACK_SWITCH p0
 #define CLK_IN_A    p2
 
 #define MUX_1_COM   p26
@@ -37,7 +37,7 @@ const int SHIFT_PERMUTATION[8] = {4, 0, 2, 1, 3, 5, 6, 7};
 #define SSEG_STCP   9
 #define SSEG_SHCP   10
 #define SSEG_DS     11
-#define CLK_IN_TN_A 12
+#define CLK_JACK_SWITCH 12
 #define CLK_IN_A    A1
 
 #define MUX_1_COM   A0

@@ -14,10 +14,8 @@
   #include <TimerInterrupt.h>
 #endif
 
-// Got to be globals to work with the arduino timer. TODO: Figure out how to do
-// this on other platforms Internal clock
 int clockIn = CLK_IN_A;
-int clockOut = CLK_IN_TN_A;
+int clockJackSwitch = CLK_JACK_SWITCH;
 
 // More accurate input clock high detection
 volatile uint8_t lastInternalClockState = LOW;
@@ -25,7 +23,7 @@ volatile unsigned long lastHighClockTime = 0;
 uint16_t clockPhaseCounter = 0;
 volatile uint8_t inputClockCounter = 0;
 volatile uint8_t inputClockDivider = 1;
-volatile uint8_t lastClock = LOW;
+volatile uint8_t lastExternalClock = LOW;
 
 // Beat input reset
 volatile uint8_t beatInputResetMode = 0;
@@ -42,7 +40,6 @@ static TIMER_HEADER(TimerHandler)
   if (clockPhaseCounter >= 100) {
     clockPhaseCounter = 0;
     lastInternalClockState = !lastInternalClockState;
-    digitalWrite(clockOut, lastInternalClockState);
   }
 
   if (lastTapTempoOut != tapTempoOut) {
@@ -67,14 +64,14 @@ ISR(PCINT0_vect) {
 #endif
     if (inputClockCounter == 0) {
       lastHighClockTime = micros();
-      lastClock = HIGH;
+      lastExternalClock = HIGH;
     } else {
-      lastClock = LOW;
+      lastExternalClock = LOW;
     }
 
     inputClockCounter = (inputClockCounter + 1) % inputClockDivider;
   } else {
-    lastClock = LOW;
+    lastExternalClock = LOW;
   }
 }
 
@@ -99,7 +96,7 @@ void Module::_processEncoders() {
   if (inc != 0) {
 
     // When you hold down the clock button, you set the tempo with the knobs
-    if (this->clockSwitch == LOW) {
+    if (this->clockSwitch == LOW && isClockInternal) {
       this->tapTempo += inc;
       tapTempoOut += inc;
       if (this->tapTempo < Module::tempoMin)
@@ -132,7 +129,7 @@ void Module::_processEncoders() {
 
   if (inc != 0) {
     // When you hold down the clock button, you set the tempo with the knobs
-    if (this->clockSwitch == LOW) {
+    if (this->clockSwitch == LOW && isClockInternal) {
       this->tapTempo += inc * 10;
       tapTempoOut += inc * 10;
       if (this->tapTempo < Module::tempoMin)
@@ -277,7 +274,8 @@ void Module::_display() {
 
   int value, decimal = 0, colon = 0;
   int tempoDecimal = 1;
-  long displayableTempo = (long)round(this->scaledTempo * 10.0f);
+  float activeTempo = isClockInternal ? tapTempoOut : this->scaledTempo;
+  long displayableTempo = (long)round(activeTempo * 10.0f);
   if (displayableTempo > 10000) {
     displayableTempo /= 10;
     displayableTempo %= 10000;
@@ -424,7 +422,7 @@ void Module::initHardware() {
   // Clock pins
   // TODO - make part of Hardware class (Does it really have to be global?)
   pinMode(clockIn, INPUT);
-  pinMode(clockOut, OUTPUT);
+  pinMode(clockJackSwitch, INPUT);
 
   for (int i = 0; i < 8; i++) {
     output_sr_val[i] = 0;
@@ -452,7 +450,8 @@ Module::Module() { MS_init(&this->messd); };
 
 void Module::process(float microsDelta) {
 
-  uint8_t clockInput = lastClock;
+  isClockInternal = !digitalRead(clockJackSwitch);
+  uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
 
   // Let's process the encoders as often as we can, basically after every big
   // operation
@@ -588,7 +587,11 @@ void Module::process(float microsDelta) {
     this->lastRecordedHighClockTime = lastHighClockTime;
   }
 
-  this->ins.cheatedMeasuredPeriod = measuredPeriod;
+  if (isClockInternal) {
+    this->ins.cheatedMeasuredPeriod = 60000000.0 / (double) tapTempoOut;
+  } else {
+    this->ins.cheatedMeasuredPeriod = measuredPeriod;
+  }
 
   // Serial.println(this->ins.cheatedMeasuredPeriod);
   // Serial.println(measuredPeriod);
@@ -748,7 +751,6 @@ void Module::process(float microsDelta) {
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
       this->outs.beat ? LOW : HIGH;
 
-  Serial.println(output_sr_val[(uint8_t)OutputNames::BeatOutput]);
   // about 100 msec
 
   // for (int i = 0; i < 8; i++) {

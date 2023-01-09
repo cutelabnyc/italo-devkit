@@ -107,6 +107,7 @@ private:
 
   // Storage for the clock switch
   uint8_t clockSwitch = LOW;
+  uint8_t isClockInternal = 1;
   float tapTempo = 131.0;
   float scaledTempo = 120.0f;
   unsigned long lastTapMicros = 0;
