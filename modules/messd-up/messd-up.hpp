@@ -131,6 +131,7 @@ private:
   float beatHoldTime = 0.0;
   uint32_t beatModeDisplayTime = OTHER_DISPLAY_TIME;
   uint8_t lastBeatInputValue = 0;
+  t_thresh beatSwitchThreshold;
 
   // Countdown display
   uint8_t lastDownbeat = false;
@@ -174,7 +175,7 @@ private:
   uint8_t initial_beat_latch = 0;
   uint8_t beat_switch_state_prev = 0;
   uint8_t div_switch_state_prev = 0;
-  uint8_t canSwitchBeatInputModes = 0;
+  uint8_t canSwitchBeatInputModes = 1;
   float latchPulseTimer = 0.0f;
 
   void _scaleValues();

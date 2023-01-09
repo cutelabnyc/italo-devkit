@@ -1,5 +1,9 @@
 #define BEAT_INPUT_MIN    2
 #define BEAT_INPUT_MAX    914
+#define BEAT_INPUT_THRESH 640
+#define BEAT_INPUT_HIST   5
+
+// If we want to call anything above
 
 #define DIV_INPUT_MIN     2
 #define DIV_INPUT_MAX     914

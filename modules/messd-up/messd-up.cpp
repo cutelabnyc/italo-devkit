@@ -396,6 +396,8 @@ void Module::initHardware() {
 
   Serial.begin(9600);
 
+  thresh_init(&beatSwitchThreshold, BEAT_INPUT_THRESH, BEAT_INPUT_HIST);
+
   // while (!Serial) {}
   // delay (100);
 
@@ -472,17 +474,19 @@ void Module::process(float microsDelta) {
 
   // return;
 
-  static int beatInputMid = (BEAT_INPUT_MAX + BEAT_INPUT_MIN) / 2;
-  uint8_t beatInput =
-      hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT) < beatInputMid ? 1 : 0;
+  uint16_t rawBeatInput = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
+  rawBeatInput = min(BEAT_INPUT_MAX, max(BEAT_INPUT_MIN, rawBeatInput));
+  rawBeatInput = BEAT_INPUT_MAX - rawBeatInput + BEAT_INPUT_MIN; // invert
+  char beatThreshOutput = 0;
+  thresh_process(&beatSwitchThreshold, &rawBeatInput, &beatThreshOutput);
   uint8_t didReset = 0;
   this->ins.resetBeatCount = 0;
-  if (beatInputResetMode && (beatInput && !this->lastBeatInputValue)) {
+  if (beatInputResetMode && (beatThreshOutput && !this->lastBeatInputValue)) {
     this->ins.resetBeatCount = 1;
     didReset = 1;
     Serial.println("reset");
   }
-  this->lastBeatInputValue = beatInput;
+  this->lastBeatInputValue = beatThreshOutput;
 
   // Compute the final value for subdivisions and beats based on modulation
   // inputs and attenuverters
@@ -504,13 +508,17 @@ void Module::process(float microsDelta) {
   float divBase = this->state.div;
   state.activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
 
+  int beatsOffset = 0;
+  int beatsBase = this->state.beats;
+  static int beatInputMid = (BEAT_INPUT_MAX - BEAT_INPUT_MIN) / 2;
   static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
   static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
-  int beatSigInput = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
-  beatSigInput = max(BEAT_INPUT_MIN, min(BEAT_INPUT_MAX, beatSigInput));
-  beatSigInput -= beatInputMid;
-  int beatsOffset = beatSigInput / beatInputGrain;
-  int beatsBase = this->state.beats;
+
+  if (!beatInputResetMode) {
+    int beatSigInput = rawBeatInput;
+    beatSigInput -= (beatInputMid + BEAT_INPUT_MIN);
+    beatsOffset = beatSigInput / beatInputGrain;
+  }
   state.activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
   this->ins.tempo = tapTempoOut;
@@ -739,6 +747,8 @@ void Module::process(float microsDelta) {
       this->outs.downbeat ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
       this->outs.beat ? LOW : HIGH;
+
+  Serial.println(output_sr_val[(uint8_t)OutputNames::BeatOutput]);
   // about 100 msec
 
   // for (int i = 0; i < 8; i++) {
