@@ -113,6 +113,7 @@ private:
   unsigned long lastTapMicros = 0;
   unsigned char totalTaps = 0;
   uint32_t tempoDisplayTime = TEMPO_DISPLAY_TIME;
+  uint8_t isRoundTripMode = 1;
 
   // Storage for the modulation switch
   uint8_t modSwitch = HIGH; // active low
@@ -180,7 +181,7 @@ private:
   float latchPulseTimer = 0.0f;
 
   void _scaleValues();
-  void _processEncoders();
+  void _processEncoders(float ratio);
   void _processTapTempo(float msDelta);
   void _processModSwitch(float msDelta);
   void _processBeatDivSwitches(float msDelta);

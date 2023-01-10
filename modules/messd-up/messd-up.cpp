@@ -89,16 +89,21 @@ void Module::_scaleValues() {
                               : 0.5);
 }
 
-void Module::_processEncoders() {
+void Module::_processEncoders(float ratio) {
   int inc = hardware.beat.process(
       hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_A),
       hardware.digitalMux.getOutput(DigitalMux.BEAT_ENC_B));
+
+  // If we're using the internal clock,
+  // then we want to make changes relative to the scaled clock
+  float incScale = ratio;
+
   if (inc != 0) {
 
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW && isClockInternal) {
-      this->tapTempo += inc;
-      tapTempoOut += inc;
+      this->tapTempo += inc * incScale;
+      tapTempoOut += inc * incScale;
       if (this->tapTempo < Module::tempoMin)
         this->tapTempo = tapTempoOut = Module::tempoMin;
       if (this->tapTempo > Module::tempoMax)
@@ -130,8 +135,8 @@ void Module::_processEncoders() {
   if (inc != 0) {
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW && isClockInternal) {
-      this->tapTempo += inc * 10;
-      tapTempoOut += inc * 10;
+      this->tapTempo += inc * 10 * incScale;
+      tapTempoOut += inc * 10 * incScale;
       if (this->tapTempo < Module::tempoMin)
         this->tapTempo = tapTempoOut = Module::tempoMin;
       if (this->tapTempo > Module::tempoMax)
@@ -161,45 +166,47 @@ void Module::_processEncoders() {
 void Module::_processTapTempo(float microsDelta) {
   int nextClockSwitch = hardware.digitalMux.getOutput(DigitalMux.CLOCK_SWITCH);
 
-  if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
-    unsigned long nextTapMicros = micros();
-    unsigned long delta;
-    if (nextTapMicros < this->lastTapMicros) {
-      delta = (4294967295 - this->lastTapMicros) + nextTapMicros;
+  if (!isClockInternal) {
+    if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
+      unsigned long nextTapMicros = micros();
+      unsigned long delta;
+      if (nextTapMicros < this->lastTapMicros) {
+        delta = (4294967295 - this->lastTapMicros) + nextTapMicros;
+      } else {
+        delta = nextTapMicros - this->lastTapMicros;
+      }
+
+      // Treat it as the first tap if it's been more than two seconds
+      if (delta > 2000000) {
+        totalTaps = 1;
+      } else if (totalTaps == 1) {
+        this->tapTempo = 60000000.0 / ((double)delta);
+        totalTaps++;
+      } else {
+        this->tapTempo =
+            (60000000.0 / ((double)delta)) * (1.0 / (double)totalTaps) +
+            this->tapTempo * ((totalTaps - 1) / (double)totalTaps);
+        tapTempoOut = this->tapTempo;
+        totalTaps = totalTaps >= 5 ? 5 : (totalTaps + 1);
+      }
+
+      this->lastTapMicros = nextTapMicros;
+
+      if (this->tapTempo < Module::tapTempoMin)
+        this->tapTempo = tapTempoOut = Module::tapTempoMin;
+      if (this->tapTempo > Module::tapTempoMax)
+        this->tapTempo = tapTempoOut = Module::tapTempoMax;
+    }
+
+    if (nextClockSwitch != LOW) {
+      this->tempoDisplayTime += microsDelta;
+      if (this->tempoDisplayTime > TEMPO_DISPLAY_TIME * 2) {
+        this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
+      }
     } else {
-      delta = nextTapMicros - this->lastTapMicros;
+      this->tempoDisplayTime = 0;
+      this->inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
     }
-
-    // Treat it as the first tap if it's been more than two seconds
-    if (delta > 2000000) {
-      totalTaps = 1;
-    } else if (totalTaps == 1) {
-      this->tapTempo = 60000000.0 / ((double)delta);
-      totalTaps++;
-    } else {
-      this->tapTempo =
-          (60000000.0 / ((double)delta)) * (1.0 / (double)totalTaps) +
-          this->tapTempo * ((totalTaps - 1) / (double)totalTaps);
-      tapTempoOut = this->tapTempo;
-      totalTaps = totalTaps >= 5 ? 5 : (totalTaps + 1);
-    }
-
-    this->lastTapMicros = nextTapMicros;
-
-    if (this->tapTempo < Module::tapTempoMin)
-      this->tapTempo = tapTempoOut = Module::tapTempoMin;
-    if (this->tapTempo > Module::tapTempoMax)
-      this->tapTempo = tapTempoOut = Module::tapTempoMax;
-  }
-
-  if (nextClockSwitch != LOW) {
-    this->tempoDisplayTime += microsDelta;
-    if (this->tempoDisplayTime > TEMPO_DISPLAY_TIME * 2) {
-      this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
-    }
-  } else {
-    this->tempoDisplayTime = 0;
-    this->inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
   }
 
   this->clockSwitch = nextClockSwitch;
@@ -274,7 +281,7 @@ void Module::_display() {
 
   int value, decimal = 0, colon = 0;
   int tempoDecimal = 1;
-  float activeTempo = isClockInternal ? tapTempoOut : this->scaledTempo;
+  float activeTempo = this->scaledTempo;
   long displayableTempo = (long)round(activeTempo * 10.0f);
   if (displayableTempo > 10000) {
     displayableTempo /= 10;
@@ -452,14 +459,15 @@ void Module::process(float microsDelta) {
 
   isClockInternal = !digitalRead(clockJackSwitch);
   uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
+  float ratio = (float) this->messd.tempoDivide / (float) this->messd.tempoMultiply;
 
   // Let's process the encoders as often as we can, basically after every big
   // operation
-  hardware.digitalMux.process();
-
-  _processEncoders();
-
   hardware.analogMux.process();
+  isRoundTripMode = hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
+
+  hardware.digitalMux.process();
+  _processEncoders(ratio);
 
   _processTapTempo(microsDelta);
   _processModSwitch(microsDelta);
@@ -537,8 +545,7 @@ void Module::process(float microsDelta) {
   this->ins.latchModulationToDownbeat =
       hardware.analogMux.getOutput(AnalogMux.LATCH_SWITCH) > (MAX_VOLTAGE >> 1);
   this->ins.invert = 0; // unused
-  this->ins.isRoundTrip =
-      hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
+  this->ins.isRoundTrip = isRoundTripMode;
 
   if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MICROS && this->canTriggerReset) {
     this->ins.reset = true;
@@ -608,7 +615,7 @@ void Module::process(float microsDelta) {
   this->ins.delta = ((float)offset) / 1000.0;
 
   hardware.digitalMux.process();
-  _processEncoders();
+  _processEncoders(ratio);
 
   MS_process(&this->messd, &this->ins, &this->outs);
 
@@ -732,7 +739,7 @@ void Module::process(float microsDelta) {
   }
 
   hardware.digitalMux.process();
-  _processEncoders();
+  _processEncoders(ratio);
 
   // Configure outputs
   output_sr_val[(uint8_t)OutputNames::Nothing] = HIGH;
@@ -795,7 +802,7 @@ void Module::process(float microsDelta) {
   _display();
 
   hardware.digitalMux.process();
-  _processEncoders();
+  _processEncoders(ratio);
 
   this->eomBuffer += microsDelta;
   if (this->eomBuffer > 5000000)
