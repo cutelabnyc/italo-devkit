@@ -166,7 +166,7 @@ void Module::_processEncoders(float ratio) {
 void Module::_processTapTempo(float microsDelta) {
   int nextClockSwitch = hardware.digitalMux.getOutput(DigitalMux.CLOCK_SWITCH);
 
-  if (!isClockInternal) {
+  if (isClockInternal) {
     if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
       unsigned long nextTapMicros = micros();
       unsigned long delta;
@@ -511,7 +511,7 @@ void Module::process(float microsDelta) {
       (float)(divAttenuvertInput - DIV_ATV_MIN) / divAttenuvertRange;
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
 
-  int divOffset = (divInput *= divAttenuvert) / divInputGrain;
+  int divOffset = (divInput * divAttenuvert) / divInputGrain;
   float divBase = this->state.div;
   state.activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
 
