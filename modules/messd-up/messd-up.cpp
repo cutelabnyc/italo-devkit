@@ -102,8 +102,8 @@ void Module::_processEncoders(float ratio) {
 
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW && isClockInternal) {
-      this->tapTempo += inc * incScale;
-      tapTempoOut += inc * incScale;
+      this->tapTempo += inc * incScale * 0.1;
+      tapTempoOut += inc * incScale * 0.1;
       if (this->tapTempo < Module::tempoMin)
         this->tapTempo = tapTempoOut = Module::tempoMin;
       if (this->tapTempo > Module::tempoMax)
