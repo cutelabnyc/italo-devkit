@@ -22,11 +22,8 @@ volatile uint8_t lastInternalClockState = LOW;
 volatile unsigned long lastHighClockTime = 0;
 uint16_t clockPhaseCounter = 0;
 volatile uint8_t inputClockCounter = 0;
-volatile uint8_t inputClockDivider = 1;
+volatile uint8_t atomicInputClockDivider = 1;
 volatile uint8_t lastExternalClock = LOW;
-
-// Beat input reset
-volatile uint8_t beatInputResetMode = 0;
 
 // Tempo
 volatile float tapTempoOut = 131.0;
@@ -69,7 +66,7 @@ ISR(PCINT0_vect) {
       lastExternalClock = LOW;
     }
 
-    inputClockCounter = (inputClockCounter + 1) % inputClockDivider;
+    inputClockCounter = (inputClockCounter + 1) % atomicInputClockDivider;
   } else {
     lastExternalClock = LOW;
   }
@@ -102,12 +99,12 @@ void Module::_processEncoders(float ratio) {
 
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW && isClockInternal) {
-      this->tapTempo += inc * incScale * 0.1;
+      activeState.tapTempo += inc * incScale * 0.1;
       tapTempoOut += inc * incScale * 0.1;
-      if (this->tapTempo < Module::tempoMin)
-        this->tapTempo = tapTempoOut = Module::tempoMin;
-      if (this->tapTempo > Module::tempoMax)
-        this->tapTempo = tapTempoOut = Module::tempoMax;
+      if (activeState.tapTempo < Module::tempoMin)
+        activeState.tapTempo = tapTempoOut = Module::tempoMin;
+      if (activeState.tapTempo > Module::tempoMax)
+        activeState.tapTempo = tapTempoOut = Module::tempoMax;
     } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
       // No-op, the beat encoder doesn't do anything here
     } else {
@@ -118,12 +115,12 @@ void Module::_processEncoders(float ratio) {
       // You can't change beats when you're in a round trip modulation, in latch
       // mode
       if (!(messd.inRoundTripModulation && ins.latchModulationToDownbeat)) {
-        state.beats += inc;
+        activeState.beats += inc;
         this->latchPulseTimer = 0.0f;
-        if (state.beats < beatsDivMin)
-          state.beats = beatsDivMax;
-        if (state.beats > beatsDivMax)
-          state.beats = beatsDivMin;
+        if (activeState.beats < beatsDivMin)
+          activeState.beats = beatsDivMax;
+        if (activeState.beats > beatsDivMax)
+          activeState.beats = beatsDivMin;
       }
     }
   }
@@ -135,30 +132,33 @@ void Module::_processEncoders(float ratio) {
   if (inc != 0) {
     // When you hold down the clock button, you set the tempo with the knobs
     if (this->clockSwitch == LOW && isClockInternal) {
-      this->tapTempo += inc * 10 * incScale;
+      activeState.tapTempo += inc * 10 * incScale;
       tapTempoOut += inc * 10 * incScale;
-      if (this->tapTempo < Module::tempoMin)
-        this->tapTempo = tapTempoOut = Module::tempoMin;
-      if (this->tapTempo > Module::tempoMax)
-        this->tapTempo = tapTempoOut = Module::tempoMax;
+      if (activeState.tapTempo < Module::tempoMin)
+        activeState.tapTempo = tapTempoOut = Module::tempoMin;
+      if (activeState.tapTempo > Module::tempoMax)
+        activeState.tapTempo = tapTempoOut = Module::tempoMax;
     } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
-      inputClockDivider += inc;
+      activeState.inputClockDivider += inc;
       this->inputClockDivDisplayTime = 0.0f;
-      if (inputClockDivider < Module::inputClockDivideMin)
-        inputClockDivider = Module::inputClockDivideMin;
-      if (inputClockDivider > Module::inputClockDivideMax)
-        inputClockDivider = Module::inputClockDivideMax;
+      if (activeState.inputClockDivider < Module::inputClockDivideMin) {
+        activeState.inputClockDivider = Module::inputClockDivideMin;
+      } else if (activeState.inputClockDivider > Module::inputClockDivideMax) {
+        activeState.inputClockDivider = Module::inputClockDivideMax;
+      }
+
+      atomicInputClockDivider = activeState.inputClockDivider;
     } else {
       this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
       this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
       this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
 
-      state.div += inc;
+      activeState.subdivisions += inc;
       this->latchPulseTimer = 0.0f;
-      if (state.div < beatsDivMin)
-        state.div = beatsDivMax;
-      if (state.div > beatsDivMax)
-        state.div = beatsDivMin;
+      if (activeState.subdivisions < beatsDivMin)
+        activeState.subdivisions = beatsDivMax;
+      if (activeState.subdivisions > beatsDivMax)
+        activeState.subdivisions = beatsDivMin;
     }
   }
 }
@@ -180,22 +180,22 @@ void Module::_processTapTempo(float microsDelta) {
       if (delta > 2000000) {
         totalTaps = 1;
       } else if (totalTaps == 1) {
-        this->tapTempo = 60000000.0 / ((double)delta);
+        activeState.tapTempo = 60000000.0 / ((double)delta);
         totalTaps++;
       } else {
-        this->tapTempo =
+        activeState.tapTempo =
             (60000000.0 / ((double)delta)) * (1.0 / (double)totalTaps) +
-            this->tapTempo * ((totalTaps - 1) / (double)totalTaps);
-        tapTempoOut = this->tapTempo;
+            activeState.tapTempo * ((totalTaps - 1) / (double)totalTaps);
+        tapTempoOut = activeState.tapTempo;
         totalTaps = totalTaps >= 5 ? 5 : (totalTaps + 1);
       }
 
       this->lastTapMicros = nextTapMicros;
 
-      if (this->tapTempo < Module::tapTempoMin)
-        this->tapTempo = tapTempoOut = Module::tapTempoMin;
-      if (this->tapTempo > Module::tapTempoMax)
-        this->tapTempo = tapTempoOut = Module::tapTempoMax;
+      if (activeState.tapTempo < Module::tapTempoMin)
+        activeState.tapTempo = tapTempoOut = Module::tapTempoMin;
+      if (activeState.tapTempo > Module::tapTempoMax)
+        activeState.tapTempo = tapTempoOut = Module::tapTempoMax;
     }
 
     if (nextClockSwitch != LOW) {
@@ -230,12 +230,12 @@ void Module::_processBeatDivSwitches(float microsDelta) {
   // div switch
   if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
     if (div_switch_state_prev == HIGH) {
-      initial_div_latch = div_latch;
-      div_latch = !div_latch;
+      initial_div_latch = activeState.div_latch;
+      activeState.div_latch = !activeState.div_latch;
     } else {
       divHoldTime += microsDelta;
       if (divHoldTime >= DIV_BUTTON_HOLD_TIME) {
-        div_latch = initial_div_latch;
+        activeState.div_latch = initial_div_latch;
         inputClockDivDisplayTime = 0.0f;
       }
     }
@@ -250,13 +250,13 @@ void Module::_processBeatDivSwitches(float microsDelta) {
   // beat switch
   if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
     if (beat_switch_state_prev == HIGH) {
-      initial_beat_latch = beat_latch;
-      beat_latch = !beat_latch;
+      initial_beat_latch = activeState.beat_latch;
+      activeState.beat_latch = !activeState.beat_latch;
     } else {
       beatHoldTime += microsDelta;
       if (canSwitchBeatInputModes && beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
-        beat_latch = initial_beat_latch;
-        beatInputResetMode = !beatInputResetMode;
+        activeState.beat_latch = initial_beat_latch;
+        activeState.beatInputResetMode = !activeState.beatInputResetMode;
         canSwitchBeatInputModes = false;
         beatModeDisplayTime = 0.0f;
       }
@@ -313,14 +313,14 @@ void Module::_display() {
     if (this->displayState == DisplayState::Tempo) {
       value = (displayableTempo) / 1000;
     } else if (this->displayState == DisplayState::Default) {
-      value = state.activeDiv / 10;
+      value = activeDiv / 10;
     } else if (this->displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
     } else if (this->displayState == DisplayState::InputClockDivide) {
       value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::BeatMode) {
       value =
-          (int)(beatInputResetMode ? SpecialDigits::Nothing : SpecialDigits::B);
+          (int)(activeState.beatInputResetMode ? SpecialDigits::Nothing : SpecialDigits::B);
     } else if (this->displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold / 1000;
       if (value == 0)
@@ -333,14 +333,14 @@ void Module::_display() {
     if (this->displayState == DisplayState::Tempo) {
       value = ((displayableTempo) / 100) % 10;
     } else if (this->displayState == DisplayState::Default) {
-      value = state.activeDiv % 10;
+      value = activeDiv % 10;
       decimal = this->outs.subdivision;
     } else if (this->displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
     } else if (this->displayState == DisplayState::InputClockDivide) {
       value = (int)1;
     } else if (this->displayState == DisplayState::BeatMode) {
-      value = (int)(beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
+      value = (int)(activeState.beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
     } else if (this->displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold / 100;
       if (value == 0)
@@ -354,15 +354,15 @@ void Module::_display() {
       value = ((displayableTempo) / 10) % 10;
       decimal = tempoDecimal;
     } else if (this->displayState == DisplayState::Default) {
-      value = state.activeBeats / 10;
+      value = activeBeats / 10;
     } else if (this->displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
     } else if (this->displayState == DisplayState::InputClockDivide) {
-      value = inputClockDivider / 10;
+      value = activeState.inputClockDivider / 10;
       if (value == 0)
         value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::BeatMode) {
-      value = (beatInputResetMode ? 5 : (int)SpecialDigits::A);
+      value = (activeState.beatInputResetMode ? 5 : (int)SpecialDigits::A);
     } else if (this->displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold / 10;
       if (value == 0)
@@ -375,12 +375,12 @@ void Module::_display() {
     if (this->displayState == DisplayState::Tempo) {
       value = displayableTempo % 10;
     } else if (this->displayState == DisplayState::Default) {
-      value = state.activeBeats % 10;
+      value = activeBeats % 10;
       decimal = this->outs.beat;
     } else if (this->displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
     } else if (this->displayState == DisplayState::InputClockDivide) {
-      value = inputClockDivider % 10;
+      value = activeState.inputClockDivider % 10;
     } else if (this->displayState == DisplayState::BeatMode) {
       value = (int)SpecialDigits::T;
     } else if (this->displayState == DisplayState::Countdown) {
@@ -488,7 +488,7 @@ void Module::process(float microsDelta) {
   thresh_process(&beatSwitchThreshold, &rawBeatInput, &beatThreshOutput);
   uint8_t didReset = 0;
   this->ins.resetBeatCount = 0;
-  if (beatInputResetMode && (beatThreshOutput && !this->lastBeatInputValue)) {
+  if (activeState.beatInputResetMode && (beatThreshOutput && !this->lastBeatInputValue)) {
     this->ins.resetBeatCount = 1;
     didReset = 1;
     Serial.println("reset");
@@ -512,25 +512,25 @@ void Module::process(float microsDelta) {
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
 
   int divOffset = (divInput * divAttenuvert) / divInputGrain;
-  float divBase = this->state.div;
-  state.activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
+  float divBase = activeState.subdivisions;
+  activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
 
   int beatsOffset = 0;
-  int beatsBase = this->state.beats;
+  int beatsBase = activeState.beats;
   static int beatInputMid = (BEAT_INPUT_MAX - BEAT_INPUT_MIN) / 2;
   static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
   static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
 
-  if (!beatInputResetMode) {
+  if (!activeState.beatInputResetMode) {
     int beatSigInput = rawBeatInput;
     beatSigInput -= (beatInputMid + BEAT_INPUT_MIN);
     beatsOffset = beatSigInput / beatInputGrain;
   }
-  state.activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
+  activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
   this->ins.tempo = tapTempoOut;
-  this->ins.beatsPerMeasure = state.activeBeats;
-  this->ins.subdivisionsPerMeasure = state.activeDiv;
+  this->ins.beatsPerMeasure = activeBeats;
+  this->ins.subdivisionsPerMeasure = activeDiv;
   this->ins.phase = 0; // unused
   this->ins.ext_clock = clockInput == HIGH;
 
@@ -538,8 +538,8 @@ void Module::process(float microsDelta) {
   this->ins.modulationSignal =
       hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) > modInputMid ? 1 : 0;
   this->ins.modulationSwitch = this->modSwitch == LOW; // active low
-  this->ins.latchBeatChangesToDownbeat = beat_latch;
-  this->ins.latchDivChangesToDownbeat = div_latch;
+  this->ins.latchBeatChangesToDownbeat = activeState.beat_latch;
+  this->ins.latchDivChangesToDownbeat = activeState.div_latch;
 
   // TODO: Get this working after Max solders on the resistors
   this->ins.latchModulationToDownbeat =
@@ -669,8 +669,8 @@ void Module::process(float microsDelta) {
     this->modButtonFlashTimer = 0.0;
     this->modButtonFlashCount = 0;
 
-    this->state.div = this->ins.subdivisionsPerMeasure;
-    this->state.beats = this->ins.beatsPerMeasure;
+    this->activeState.subdivisions = this->ins.subdivisionsPerMeasure;
+    this->activeState.beats = this->ins.beatsPerMeasure;
 
     // Serial.println(this->messd.rootClockPhase);
     // Serial.println(this->messd.scaledClockPhase);
@@ -768,12 +768,12 @@ void Module::process(float microsDelta) {
   hardware.moduleOuts.process(this->output_sr_val, 8, true);
 
   // Configure LEDs
-  bool beatLatchDisplay = this->beat_latch;
-  if (this->state.activeBeats != this->messd.beatsPerMeasure) {
+  bool beatLatchDisplay = activeState.beat_latch;
+  if (activeBeats != this->messd.beatsPerMeasure) {
     beatLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
   }
-  bool divLatchDisplay = this->div_latch;
-  if (this->state.activeDiv != this->messd.subdivisionsPerMeasure) {
+  bool divLatchDisplay = activeState.div_latch;
+  if (activeDiv != this->messd.subdivisionsPerMeasure) {
     divLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
   }
   leds_sr_val[(uint8_t)LEDNames::Nothing] = HIGH;

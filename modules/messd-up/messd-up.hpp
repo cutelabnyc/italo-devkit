@@ -35,11 +35,33 @@
 
 // #define IS_POWERED_FROM_ARDUINO
 
+class EEPROMWriter {
+private:
+  char *_data;
+  size_t _datalen;
+  uint32_t magic = 0x00DADB0D;
+public:
+  EEPROMWriter(char *data, size_t datalen);
+  uint8_t initialize();
+  uint8_t compareAndUpdate(char *newData);
+  uint8_t commit();
+};
+
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
   messd_t messd;
   messd_ins_t ins;
   messd_outs_t outs;
+
+  typedef struct SerializableState {
+    int beats;
+    int subdivisions;
+    float tapTempo;
+    uint8_t div_latch;
+    uint8_t beat_latch;
+    uint8_t beatInputResetMode;
+    uint8_t inputClockDivider;
+  } SerializableState;
 
   class MessdUpHardware : public Hardware<MessdUpHardware> {
   private:
@@ -108,12 +130,15 @@ private:
   // Storage for the clock switch
   uint8_t clockSwitch = LOW;
   uint8_t isClockInternal = 1;
-  float tapTempo = 131.0;
   float scaledTempo = 120.0f;
   unsigned long lastTapMicros = 0;
   unsigned char totalTaps = 0;
   uint32_t tempoDisplayTime = TEMPO_DISPLAY_TIME;
   uint8_t isRoundTripMode = 1;
+
+  // Beats and subdivisions
+  int activeBeats;
+  int activeDiv;
 
   // Storage for the modulation switch
   uint8_t modSwitch = HIGH; // active low
@@ -171,14 +196,24 @@ private:
   };
 
   // Storage for the latch switches
-  uint8_t beat_latch = 1;
-  uint8_t div_latch = 1;
   uint8_t initial_div_latch = 0;
   uint8_t initial_beat_latch = 0;
   uint8_t beat_switch_state_prev = 0;
   uint8_t div_switch_state_prev = 0;
   uint8_t canSwitchBeatInputModes = 1;
   float latchPulseTimer = 0.0f;
+
+  // Serializable state that can go into EEPROM
+  SerializableState activeState = {
+    4,        // beats
+    7,        // subdivisions
+    131.0,    // tempo
+    1,        // div_latch
+    1,        // beat_latch
+    0,        // beatInputResetMode
+    1         // inputClockDivider
+  };
+  SerializableState committedState;
 
   void _scaleValues();
   void _processEncoders(float ratio);
@@ -190,13 +225,6 @@ private:
 public:
   Module();
   MessdUpHardware hardware;
-
-  struct state {
-    int beats = 4;
-    int div = 7;
-    int activeBeats = 4;
-    int activeDiv = 7;
-  } state;
 
 #if (USING_MBED_RPI_PICO)
   struct AnalogMux {
