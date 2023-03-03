@@ -72,6 +72,124 @@ ISR(PCINT0_vect) {
   }
 }
 
+template <typename DataType>
+NonVolatileStorage<DataType>::NonVolatileStorage(DataType *data): _data(data) { }
+
+template <typename DataType>
+uint8_t NonVolatileStorage<DataType>::initialize()
+{
+
+  Serial.println("Initializing nonvolatlie storage");
+
+  if (!myFS.init()) {
+    Serial.println("mount failed");
+  }
+
+  Serial.println("Initializing data");
+  FILE *f = fopen(filename, "r");
+  // FILE *f = NULL;
+  uint8_t status = 0;
+  DataType buffer;
+
+  if (f) {
+    Serial.println("Opened File");
+
+    int bytesRead = fread((void *) &buffer, sizeof(DataType), 1, f);
+    Serial.println(bytesRead);
+    if (bytesRead >= 1) status = 1;
+
+  } else {
+    Serial.println("Could not open file");
+  }
+
+  if (f) fclose(f);
+
+  if (status == 1) {
+    Serial.println("Loaded stored data successfully");
+    memcpy((void *) _data, (const void *) &buffer, sizeof(DataType));
+  } else {
+    Serial.println("Could not load stored data, using defaults");
+  }
+  return status;
+}
+
+template <typename DataType>
+uint8_t NonVolatileStorage<DataType>::compareAndUpdate(DataType *newData)
+{
+  uint8_t *committed, *active;
+  uint8_t dirty = 0;
+
+  committed = (uint8_t *) _data;
+  active = (uint8_t *) newData;
+
+  // Serial.println("Before compare:");
+  for (int i = 0; i < sizeof(DataType); i++) {
+      // Serial.print(committed[i]);
+      // Serial.print(" : ");
+      // Serial.print(active[i]);
+      // Serial.println();
+    if (committed[i] != active[i]) {
+      dirty = 1;
+      committed[i] = active[i];
+      // Serial.println(committed[i] == active[i]);
+      // Serial.print(committed[i]);
+      // Serial.print(" : ");
+      // Serial.print(active[i]);
+      // Serial.println(committed[i] == active[i]);
+      // Serial.println();
+    }
+  }
+
+  // Serial.println("After compare:");
+  // for (int i = 0; i < sizeof(DataType); i++) {
+  //   Serial.print(committed[i]);
+  //   Serial.print(" : ");
+  //   Serial.print(active[i]);
+  //   Serial.print(" : ");
+  //   Serial.print(committed[i] == active[i]);
+  //   Serial.println();
+  // }
+
+  if (dirty) _needsCommit = true;
+  return dirty;
+}
+
+template <typename DataType>
+uint8_t NonVolatileStorage<DataType>::commit()
+{
+
+  Serial.println("Committing state to nonvolatile storage");
+  _needsCommit = false;
+
+  // return 1;
+
+  // remove(filename);
+  FILE *f = fopen(filename, "w");
+  int status = 0;
+
+  if (!f) {
+    Serial.println("Could not open file for writing");
+  } else {
+    size_t written = fwrite((const void *) _data, 1, sizeof(DataType), f);
+    Serial.println(written);
+    if (written < 1) {
+      Serial.println("Could not write module state");
+    } else {
+      Serial.println("Wrote module state successfully");
+      status = 1;
+    }
+  }
+
+  if (f) fclose(f);
+
+  return status;
+}
+
+template <typename DataType>
+uint8_t NonVolatileStorage<DataType>::needsCommit() {
+  return _needsCommit;
+}
+
 void Module::_scaleValues() {
   this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
   this->ins.beatsPerMeasure =
@@ -398,7 +516,6 @@ void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){};
 void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
 void Module::initHardware() {
-
   Serial.begin(9600);
 
   thresh_init(&beatSwitchThreshold, BEAT_INPUT_THRESH, BEAT_INPUT_HIST);
@@ -453,9 +570,22 @@ void Module::initHardware() {
 
 }
 
-Module::Module() { MS_init(&this->messd); };
+Module::Module(): _nonVolatileStorage(&committedState) {
+  MS_init(&this->messd);
+};
 
 void Module::process(float microsDelta) {
+
+  // while (!Serial) { delay (100); }
+
+  if (!_nonVolatileStorageInitialized) {
+    memcpy(&committedState, &activeState, sizeof(SerializableState));
+    uint8_t loaded = _nonVolatileStorage.initialize();
+    if (loaded) {
+      memcpy(&activeState, &committedState, sizeof(SerializableState));
+    }
+    _nonVolatileStorageInitialized = true;
+  }
 
   isClockInternal = !digitalRead(clockJackSwitch);
   uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
@@ -826,4 +956,26 @@ void Module::process(float microsDelta) {
   this->beatsEqualsDivDisplayTime += microsDelta;
   if (this->beatsEqualsDivDisplayTime > OTHER_DISPLAY_TIME + 1)
     this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME + 1;
+
+  // Last thing, check if you want to store memory
+  int neededCommit = _nonVolatileStorage.needsCommit();
+  uint8_t dirty = 0;
+  this->stateCompareTimer += microsDelta;
+  if (this->stateCompareTimer > STATE_COMPARE_INTERVAL) {
+    this->stateCompareTimer = 0;
+    dirty = _nonVolatileStorage.compareAndUpdate(&activeState);
+  }
+  if (dirty && !neededCommit) {
+    Serial.println("state dirtied");
+    this->stateCommitTimer = 0;
+  }
+
+  this->stateCommitTimer += microsDelta;
+  if (this->stateCommitTimer > STATE_COMMIT_INTERVAL * 2) {
+    this->stateCommitTimer = STATE_COMMIT_INTERVAL;
+  }
+
+  if (this->stateCommitTimer > STATE_COMMIT_INTERVAL && _nonVolatileStorage.needsCommit()) {
+    _nonVolatileStorage.commit();
+  }
 };

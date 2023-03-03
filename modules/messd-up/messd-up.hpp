@@ -10,6 +10,16 @@
 #if ( defined(ARDUINO_NANO_RP2040_CONNECT) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || \
       defined(ARDUINO_GENERIC_RP2040) ) && defined(ARDUINO_ARCH_MBED)
   #define USING_MBED_RPI_PICO		true
+
+  #define LFS_MBED_RP2040_VERSION_MIN_TARGET      "LittleFS_Mbed_RP2040 v1.1.0"
+  #define LFS_MBED_RP2040_VERSION_MIN             1001000
+
+  #define _LFS_LOGLEVEL_          4
+  #define RP2040_FS_SIZE_KB       64
+
+  #define FORCE_REFORMAT          false
+
+  #include <LittleFS_Mbed_RP2040.h>
 #else
   #error "Somehow these defines aren't in place"
   #define USING_MBED_RPI_PICO		false
@@ -32,19 +42,24 @@
 #define BEAT_BUTTON_HOLD_TIME (2000000)
 #define COUNTDOWN_DISPLAY_TIME (500000)
 #define LATCH_PULSE_TIME (500000)
+#define STATE_COMPARE_INTERVAL (100000)
+#define STATE_COMMIT_INTERVAL (15000000)
 
 // #define IS_POWERED_FROM_ARDUINO
 
-class EEPROMWriter {
-private:
-  char *_data;
-  size_t _datalen;
-  uint32_t magic = 0x00DADB0D;
+template <typename DataType>
+class NonVolatileStorage {
 public:
-  EEPROMWriter(char *data, size_t datalen);
+  NonVolatileStorage(DataType *data);
   uint8_t initialize();
-  uint8_t compareAndUpdate(char *newData);
+  uint8_t compareAndUpdate(DataType *newData);
+  uint8_t needsCommit();
   uint8_t commit();
+  DataType *_data;
+private:
+  LittleFS_MBED myFS;
+  const char *filename = "/littlefs/messd.txt";
+  uint8_t _needsCommit = false;
 };
 
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
@@ -214,6 +229,10 @@ private:
     1         // inputClockDivider
   };
   SerializableState committedState;
+  uint32_t stateCompareTimer = STATE_COMPARE_INTERVAL;
+  uint32_t stateCommitTimer = STATE_COMMIT_INTERVAL;
+  NonVolatileStorage<SerializableState> _nonVolatileStorage;
+  uint8_t _nonVolatileStorageInitialized = false;
 
   void _scaleValues();
   void _processEncoders(float ratio);
