@@ -437,6 +437,7 @@ void Module::_processBeatDivSwitches(float microsDelta) {
     } else {
       if (div_switch_state_prev == HIGH) {
         presetDisplayTimer = PRESET_DISPLAY_TIME;
+        presetAction = PresetAction::None;
       }
     }
   } else {
@@ -472,8 +473,17 @@ void Module::_processBeatDivSwitches(float microsDelta) {
       }
     } else {
       if (beat_switch_state_prev == HIGH) {
-        // TODO: commit to store/recall preset
         presetDisplayTimer = PRESET_DISPLAY_TIME;
+
+        if (presetAction == PresetAction::Recall) {
+          _nonVolatileStorage.read(targetPresetIndex, &activeState);
+          doneDisplayTimer = 0;
+        } else if (presetAction == PresetAction::Store) {
+          _nonVolatileStorage.store(targetPresetIndex, &activeState);
+          doneDisplayTimer = 0;
+        }
+
+        presetAction = PresetAction::None;
       }
     }
   } else {
@@ -520,6 +530,8 @@ void Module::_display() {
     this->displayState = DisplayState::BeatsEqualDivs;
   } else if (this->presetDisplayTimer < PRESET_DISPLAY_TIME) {
     this->displayState = DisplayState::Preset;
+  } else if (this->doneDisplayTimer < OTHER_DISPLAY_TIME) {
+    this->displayState = DisplayState::Done;
   } else {
     this->displayState = DisplayState::Default;
     colon = true;
@@ -546,6 +558,8 @@ void Module::_display() {
       value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::Preset) {
       value = (int)SpecialDigits::P;
+    } else if (this->displayState == DisplayState::Done) {
+      value = (int)SpecialDigits::D;
     }
     break;
   case 1:
@@ -568,6 +582,8 @@ void Module::_display() {
       value = (int)SpecialDigits::D;
     } else if (this->displayState == DisplayState::Preset) {
       value = targetPresetIndex + 1;
+    } else if (this->displayState == DisplayState::Done) {
+      value = 0;
     }
     break;
   case 2:
@@ -592,6 +608,8 @@ void Module::_display() {
       value = (int)SpecialDigits::Equals;
     } else if (this->displayState == DisplayState::Preset) {
       value = (int)SpecialDigits::Nothing;
+    }else if (this->displayState == DisplayState::Done) {
+      value = (int)SpecialDigits::N;
     }
     break;
   case 3:
@@ -616,6 +634,8 @@ void Module::_display() {
         presetAction == PresetAction::Recall ?
         (int)SpecialDigits::R :
         5;
+    } else if (this->displayState == DisplayState::Done) {
+      value = (int)SpecialDigits::E;
     }
     break;
   }
@@ -1071,6 +1091,11 @@ void Module::process(float microsDelta) {
   this->presetDisplayTimer += microsDelta;
   if (this->presetDisplayTimer > PRESET_DISPLAY_TIME * 2) {
     this->presetDisplayTimer = PRESET_DISPLAY_TIME;
+  }
+
+  this->doneDisplayTimer += microsDelta;
+    if (this->doneDisplayTimer > OTHER_DISPLAY_TIME * 2) {
+    this->doneDisplayTimer = OTHER_DISPLAY_TIME;
   }
   // Last thing, check if you want to store memory
   // int neededCommit = _nonVolatileStorage.needsCommit();

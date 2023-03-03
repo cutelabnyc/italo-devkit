@@ -141,7 +141,8 @@ private:
     BeatMode,
     Countdown,
     BeatsEqualDivs,
-    Preset
+    Preset,
+    Done
   };
 
   DisplayState displayState = DisplayState::Default;
@@ -245,6 +246,7 @@ private:
   uint32_t presetDisplayTimer = PRESET_DISPLAY_TIME;
   uint8_t targetPresetIndex = 0;
   PresetAction presetAction = PresetAction::None;
+  uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
 
   void _scaleValues();
   void _processEncoders(float ratio);
