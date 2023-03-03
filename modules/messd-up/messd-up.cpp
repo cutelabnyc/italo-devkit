@@ -186,6 +186,62 @@ uint8_t NonVolatileStorage<DataType>::commit()
 }
 
 template <typename DataType>
+uint8_t NonVolatileStorage<DataType>::read(int index, DataType *data)
+{
+  Serial.print("Reading preset at index");
+  Serial.println(index);
+
+  char buff[128];
+  sprintf(buff, "/littlefs/preset%d.txt", index);
+  FILE *f = fopen(filename, "r");
+  uint8_t status = 0;
+
+  if (!f) {
+    Serial.println("Could not open preset file for reading");
+  } else {
+    size_t readBytes = fread(data, 1, sizeof(DataType), f);
+    if (readBytes >= sizeof(DataType)) {
+      Serial.println("Read preset successfully");
+      status = 1;
+    } else {
+      Serial.println("Could not read preset file");
+    }
+
+    fclose(f);
+  }
+
+  return status;
+}
+
+template <typename DataType>
+uint8_t NonVolatileStorage<DataType>::store(int index, DataType *data)
+{
+  Serial.print("Storing preset at index");
+  Serial.println(index);
+
+  char buff[128];
+  sprintf(buff, "/littlefs/preset%d.txt", index);
+  FILE *f = fopen(filename, "w");
+  uint8_t status = 0;
+
+  if (!f) {
+    Serial.println("Could not open preset file for writing");
+  } else {
+    size_t writtenBytes = fwrite(data, 1, sizeof(DataType), f);
+    if (writtenBytes >= sizeof(DataType)) {
+      Serial.println("Wrote preset successfully");
+      status = 1;
+    } else {
+      Serial.println("Could not write preset file");
+    }
+
+    fclose(f);
+  }
+
+  return status;
+}
+
+template <typename DataType>
 uint8_t NonVolatileStorage<DataType>::needsCommit() {
   return _needsCommit;
 }
@@ -225,6 +281,13 @@ void Module::_processEncoders(float ratio) {
         activeState.tapTempo = tapTempoOut = Module::tempoMax;
     } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
       // No-op, the beat encoder doesn't do anything here
+    } else if (presetDisplayTimer < PRESET_DISPLAY_TIME) {
+      presetDisplayTimer = 0;
+      if (presetAction == PresetAction::None || presetAction == PresetAction::Store) {
+        presetAction = PresetAction::Recall;
+      } else {
+        presetAction = PresetAction::Store;
+      }
     } else {
       this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
       this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
@@ -266,6 +329,11 @@ void Module::_processEncoders(float ratio) {
       }
 
       atomicInputClockDivider = activeState.inputClockDivider;
+    } else if (presetDisplayTimer < PRESET_DISPLAY_TIME) {
+      presetDisplayTimer = 0;
+      targetPresetIndex += inc;
+      if (targetPresetIndex < 0) targetPresetIndex = 9 - ( abs(targetPresetIndex) % 9);
+      if (targetPresetIndex >= 9) targetPresetIndex %= 9;
     } else {
       this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
       this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
@@ -347,14 +415,28 @@ void Module::_processModSwitch(float microsDelta) {
 void Module::_processBeatDivSwitches(float microsDelta) {
   // div switch
   if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
-    if (div_switch_state_prev == HIGH) {
-      initial_div_latch = activeState.div_latch;
-      activeState.div_latch = !activeState.div_latch;
+    if (presetDisplayTimer >= PRESET_DISPLAY_TIME) {
+      if (div_switch_state_prev == HIGH) {
+        initial_div_latch = activeState.div_latch;
+        activeState.div_latch = !activeState.div_latch;
+      } else {
+        divHoldTime += microsDelta;
+        if (divHoldTime >= DIV_BUTTON_HOLD_TIME) {
+          activeState.div_latch = initial_div_latch;
+
+          if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
+            activeState.beat_latch = initial_beat_latch;
+            presetDisplayTimer = 0;
+          } else {
+            inputClockDivDisplayTime = 0;
+          }
+
+          divHoldTime = 0;
+        }
+      }
     } else {
-      divHoldTime += microsDelta;
-      if (divHoldTime >= DIV_BUTTON_HOLD_TIME) {
-        activeState.div_latch = initial_div_latch;
-        inputClockDivDisplayTime = 0.0f;
+      if (div_switch_state_prev == HIGH) {
+        presetDisplayTimer = PRESET_DISPLAY_TIME;
       }
     }
   } else {
@@ -367,16 +449,31 @@ void Module::_processBeatDivSwitches(float microsDelta) {
 
   // beat switch
   if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
-    if (beat_switch_state_prev == HIGH) {
-      initial_beat_latch = activeState.beat_latch;
-      activeState.beat_latch = !activeState.beat_latch;
+    if (presetDisplayTimer >= PRESET_DISPLAY_TIME) {
+      if (beat_switch_state_prev == HIGH) {
+        initial_beat_latch = activeState.beat_latch;
+        activeState.beat_latch = !activeState.beat_latch;
+      } else {
+        beatHoldTime += microsDelta;
+        if (beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
+          if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
+            activeState.beat_latch = initial_beat_latch;
+            activeState.div_latch = initial_div_latch;
+            presetDisplayTimer = 0;
+          } else if (canSwitchBeatInputModes) {
+            activeState.beat_latch = initial_beat_latch;
+            activeState.beatInputResetMode = !activeState.beatInputResetMode;
+            canSwitchBeatInputModes = false;
+            beatModeDisplayTime = 0.0f;
+          }
+
+          beatHoldTime = 0;
+        }
+      }
     } else {
-      beatHoldTime += microsDelta;
-      if (canSwitchBeatInputModes && beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
-        activeState.beat_latch = initial_beat_latch;
-        activeState.beatInputResetMode = !activeState.beatInputResetMode;
-        canSwitchBeatInputModes = false;
-        beatModeDisplayTime = 0.0f;
+      if (beat_switch_state_prev == HIGH) {
+        // TODO: commit to store/recall preset
+        presetDisplayTimer = PRESET_DISPLAY_TIME;
       }
     }
   } else {
@@ -421,6 +518,8 @@ void Module::_display() {
     this->displayState = DisplayState::Countdown;
   } else if (this->beatsEqualsDivDisplayTime < OTHER_DISPLAY_TIME) {
     this->displayState = DisplayState::BeatsEqualDivs;
+  } else if (this->presetDisplayTimer < PRESET_DISPLAY_TIME) {
+    this->displayState = DisplayState::Preset;
   } else {
     this->displayState = DisplayState::Default;
     colon = true;
@@ -445,6 +544,8 @@ void Module::_display() {
         value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::Nothing;
+    } else if (this->displayState == DisplayState::Preset) {
+      value = (int)SpecialDigits::P;
     }
     break;
   case 1:
@@ -465,6 +566,8 @@ void Module::_display() {
         value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::D;
+    } else if (this->displayState == DisplayState::Preset) {
+      value = targetPresetIndex + 1;
     }
     break;
   case 2:
@@ -487,6 +590,8 @@ void Module::_display() {
         value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::Equals;
+    } else if (this->displayState == DisplayState::Preset) {
+      value = (int)SpecialDigits::Nothing;
     }
     break;
   case 3:
@@ -505,6 +610,12 @@ void Module::_display() {
       value = countdownSampleAndHold % 10;
     } else if (this->displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::B;
+    } else if (this->displayState == DisplayState::Preset) {
+      value = presetAction == PresetAction::None ?
+        (int)SpecialDigits::Nothing :
+        presetAction == PresetAction::Recall ?
+        (int)SpecialDigits::R :
+        5;
     }
     break;
   }
@@ -957,25 +1068,29 @@ void Module::process(float microsDelta) {
   if (this->beatsEqualsDivDisplayTime > OTHER_DISPLAY_TIME + 1)
     this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME + 1;
 
+  this->presetDisplayTimer += microsDelta;
+  if (this->presetDisplayTimer > PRESET_DISPLAY_TIME * 2) {
+    this->presetDisplayTimer = PRESET_DISPLAY_TIME;
+  }
   // Last thing, check if you want to store memory
-  int neededCommit = _nonVolatileStorage.needsCommit();
-  uint8_t dirty = 0;
-  this->stateCompareTimer += microsDelta;
-  if (this->stateCompareTimer > STATE_COMPARE_INTERVAL) {
-    this->stateCompareTimer = 0;
-    dirty = _nonVolatileStorage.compareAndUpdate(&activeState);
-  }
-  if (dirty && !neededCommit) {
-    Serial.println("state dirtied");
-    this->stateCommitTimer = 0;
-  }
+  // int neededCommit = _nonVolatileStorage.needsCommit();
+  // uint8_t dirty = 0;
+  // this->stateCompareTimer += microsDelta;
+  // if (this->stateCompareTimer > STATE_COMPARE_INTERVAL) {
+  //   this->stateCompareTimer = 0;
+  //   dirty = _nonVolatileStorage.compareAndUpdate(&activeState);
+  // }
+  // if (dirty && !neededCommit) {
+  //   Serial.println("state dirtied");
+  //   this->stateCommitTimer = 0;
+  // }
 
-  this->stateCommitTimer += microsDelta;
-  if (this->stateCommitTimer > STATE_COMMIT_INTERVAL * 2) {
-    this->stateCommitTimer = STATE_COMMIT_INTERVAL;
-  }
+  // this->stateCommitTimer += microsDelta;
+  // if (this->stateCommitTimer > STATE_COMMIT_INTERVAL * 2) {
+  //   this->stateCommitTimer = STATE_COMMIT_INTERVAL;
+  // }
 
-  if (this->stateCommitTimer > STATE_COMMIT_INTERVAL && _nonVolatileStorage.needsCommit()) {
-    _nonVolatileStorage.commit();
-  }
+  // if (this->stateCommitTimer > STATE_COMMIT_INTERVAL && _nonVolatileStorage.needsCommit()) {
+  //   _nonVolatileStorage.commit();
+  // }
 };

@@ -31,7 +31,7 @@
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
 #define MOD_BUTTON_FLASH_TIME (75000)
-#define MOD_BUTTON_FLASH_COUNT                                                 \
+#define MOD_BUTTON_FLASH_COUNT \
   (4) // To make this a bit easier to code, this should always be 2x the number
       // of flashes you want
 #define MOD_BUTTON_STROBE_SLOW (250000)
@@ -44,6 +44,7 @@
 #define LATCH_PULSE_TIME (500000)
 #define STATE_COMPARE_INTERVAL (100000)
 #define STATE_COMMIT_INTERVAL (15000000)
+#define PRESET_DISPLAY_TIME (10000000)
 
 // #define IS_POWERED_FROM_ARDUINO
 
@@ -55,6 +56,8 @@ public:
   uint8_t compareAndUpdate(DataType *newData);
   uint8_t needsCommit();
   uint8_t commit();
+  uint8_t read(int index, DataType *data);
+  uint8_t store(int index, DataType *data);
   DataType *_data;
 private:
   LittleFS_MBED myFS;
@@ -137,7 +140,8 @@ private:
     InputClockDivide,
     BeatMode,
     Countdown,
-    BeatsEqualDivs
+    BeatsEqualDivs,
+    Preset
   };
 
   DisplayState displayState = DisplayState::Default;
@@ -228,11 +232,19 @@ private:
     0,        // beatInputResetMode
     1         // inputClockDivider
   };
+  enum class PresetAction {
+    None = 0,
+    Store,
+    Recall
+  };
   SerializableState committedState;
   uint32_t stateCompareTimer = STATE_COMPARE_INTERVAL;
   uint32_t stateCommitTimer = STATE_COMMIT_INTERVAL;
   NonVolatileStorage<SerializableState> _nonVolatileStorage;
   uint8_t _nonVolatileStorageInitialized = false;
+  uint32_t presetDisplayTimer = PRESET_DISPLAY_TIME;
+  uint8_t targetPresetIndex = 0;
+  PresetAction presetAction = PresetAction::None;
 
   void _scaleValues();
   void _processEncoders(float ratio);
