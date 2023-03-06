@@ -73,12 +73,11 @@ ISR(PCINT0_vect) {
 }
 
 template <typename DataType>
-NonVolatileStorage<DataType>::NonVolatileStorage(DataType *data): _data(data) { }
+NonVolatileStorage<DataType>::NonVolatileStorage() { }
 
 template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::initialize()
+uint8_t NonVolatileStorage<DataType>::initialize(DataType *data)
 {
-
   Serial.println("Initializing nonvolatlie storage");
 
   if (!myFS.init()) {
@@ -86,101 +85,22 @@ uint8_t NonVolatileStorage<DataType>::initialize()
   }
 
   Serial.println("Initializing data");
-  FILE *f = fopen(filename, "r");
-  // FILE *f = NULL;
-  uint8_t status = 0;
-  DataType buffer;
+  char buff[512];
+  sprintf(buff, "%s", _indexFilename);
+  int index;
+  uint8_t status = _internalRead(buff, &index);
 
-  if (f) {
-    Serial.println("Opened File");
-
-    int bytesRead = fread((void *) &buffer, sizeof(DataType), 1, f);
-    Serial.println(bytesRead);
-    if (bytesRead >= 1) status = 1;
-
-  } else {
-    Serial.println("Could not open file");
+  if (!status) {
+    Serial.println("Could not recover index of last saved preset");
+    return status;
   }
 
-  if (f) fclose(f);
+  sprintf(buff, "/littlefs/preset%d.txt", index);
+  status = _internalRead(buff, data);
 
-  if (status == 1) {
-    Serial.println("Loaded stored data successfully");
-    memcpy((void *) _data, (const void *) &buffer, sizeof(DataType));
-  } else {
+  if (!status) {
     Serial.println("Could not load stored data, using defaults");
   }
-  return status;
-}
-
-template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::compareAndUpdate(DataType *newData)
-{
-  uint8_t *committed, *active;
-  uint8_t dirty = 0;
-
-  committed = (uint8_t *) _data;
-  active = (uint8_t *) newData;
-
-  // Serial.println("Before compare:");
-  for (int i = 0; i < sizeof(DataType); i++) {
-      // Serial.print(committed[i]);
-      // Serial.print(" : ");
-      // Serial.print(active[i]);
-      // Serial.println();
-    if (committed[i] != active[i]) {
-      dirty = 1;
-      committed[i] = active[i];
-      // Serial.println(committed[i] == active[i]);
-      // Serial.print(committed[i]);
-      // Serial.print(" : ");
-      // Serial.print(active[i]);
-      // Serial.println(committed[i] == active[i]);
-      // Serial.println();
-    }
-  }
-
-  // Serial.println("After compare:");
-  // for (int i = 0; i < sizeof(DataType); i++) {
-  //   Serial.print(committed[i]);
-  //   Serial.print(" : ");
-  //   Serial.print(active[i]);
-  //   Serial.print(" : ");
-  //   Serial.print(committed[i] == active[i]);
-  //   Serial.println();
-  // }
-
-  if (dirty) _needsCommit = true;
-  return dirty;
-}
-
-template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::commit()
-{
-
-  Serial.println("Committing state to nonvolatile storage");
-  _needsCommit = false;
-
-  // return 1;
-
-  // remove(filename);
-  FILE *f = fopen(filename, "w");
-  int status = 0;
-
-  if (!f) {
-    Serial.println("Could not open file for writing");
-  } else {
-    size_t written = fwrite((const void *) _data, 1, sizeof(DataType), f);
-    Serial.println(written);
-    if (written < 1) {
-      Serial.println("Could not write module state");
-    } else {
-      Serial.println("Wrote module state successfully");
-      status = 1;
-    }
-  }
-
-  if (f) fclose(f);
 
   return status;
 }
@@ -188,51 +108,52 @@ uint8_t NonVolatileStorage<DataType>::commit()
 template <typename DataType>
 uint8_t NonVolatileStorage<DataType>::read(int index, DataType *data)
 {
-  Serial.print("Reading preset at index");
-  Serial.println(index);
-
   char buff[128];
   sprintf(buff, "/littlefs/preset%d.txt", index);
-  FILE *f = fopen(filename, "r");
-  uint8_t status = 0;
-
-  if (!f) {
-    Serial.println("Could not open preset file for reading");
-  } else {
-    size_t readBytes = fread(data, 1, sizeof(DataType), f);
-    if (readBytes >= sizeof(DataType)) {
-      Serial.println("Read preset successfully");
-      status = 1;
-    } else {
-      Serial.println("Could not read preset file");
-    }
-
-    fclose(f);
-  }
-
-  return status;
+  return _internalRead(buff, data);
 }
 
 template <typename DataType>
 uint8_t NonVolatileStorage<DataType>::store(int index, DataType *data)
 {
-  Serial.print("Storing preset at index");
+  Serial.print("Storing preset at index ");
   Serial.println(index);
 
   char buff[128];
   sprintf(buff, "/littlefs/preset%d.txt", index);
-  FILE *f = fopen(filename, "w");
+  uint8_t status = _internalStore(buff, data);
+
+  // Store the index of the last used file
+  // Maybe we want to do this when reading, not writing?
+  // Could also do both!
+  if (status) {
+    sprintf(buff, "%s", _indexFilename);
+    status = _internalStore(buff, &index);
+  }
+
+  return status;
+}
+
+template <typename DataType>
+template <typename T>
+uint8_t NonVolatileStorage<DataType>::_internalRead(const char *path, T *outData)
+{
+  char buff[512];
   uint8_t status = 0;
+  sprintf(buff, "Reading file at %s", path);
+  Serial.println(buff);
+
+  FILE *f = fopen(path, "r");
 
   if (!f) {
-    Serial.println("Could not open preset file for writing");
+    Serial.println("Could not open file for reading");
   } else {
-    size_t writtenBytes = fwrite(data, 1, sizeof(DataType), f);
-    if (writtenBytes >= sizeof(DataType)) {
-      Serial.println("Wrote preset successfully");
+    size_t readBytes = fread(outData, 1, sizeof(T), f);
+    if (readBytes >= sizeof(T)) {
+      Serial.println("Read data successfully");
       status = 1;
     } else {
-      Serial.println("Could not write preset file");
+      Serial.println("Could not read data file");
     }
 
     fclose(f);
@@ -242,8 +163,31 @@ uint8_t NonVolatileStorage<DataType>::store(int index, DataType *data)
 }
 
 template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::needsCommit() {
-  return _needsCommit;
+template <typename T>
+uint8_t NonVolatileStorage<DataType>::_internalStore(const char *path, T *data)
+{
+  char buff[512];
+  uint8_t status = 0;
+  sprintf(buff, "Storing file at %s", path);
+  Serial.println(buff);
+
+  FILE *f = fopen(path, "w");
+
+  if (!f) {
+    Serial.println("Could not open file for writing");
+  } else {
+    size_t writtenBytes = fwrite(data, 1, sizeof(T), f);
+    if (writtenBytes >= sizeof(T)) {
+      Serial.println("Wrote data successfully");
+      status = 1;
+    } else {
+      Serial.println("Could not write data file");
+    }
+
+    fclose(f);
+  }
+
+  return status;
 }
 
 void Module::_scaleValues() {
@@ -701,19 +645,21 @@ void Module::initHardware() {
 
 }
 
-Module::Module(): _nonVolatileStorage(&committedState) {
+Module::Module(): _nonVolatileStorage() {
   MS_init(&this->messd);
 };
 
 void Module::process(float microsDelta) {
 
-  // while (!Serial) { delay (100); }
+  while (!Serial) { delay (100); }
 
   if (!_nonVolatileStorageInitialized) {
-    memcpy(&committedState, &activeState, sizeof(SerializableState));
-    uint8_t loaded = _nonVolatileStorage.initialize();
+    SerializableState initialData;
+    uint8_t loaded = _nonVolatileStorage.initialize(&initialData);
+    // uint8_t loaded = false;
     if (loaded) {
-      memcpy(&activeState, &committedState, sizeof(SerializableState));
+      memcpy(&activeState, &initialData, sizeof(SerializableState));
+      tapTempoOut = activeState.tapTempo;
     }
     _nonVolatileStorageInitialized = true;
   }
@@ -1097,25 +1043,4 @@ void Module::process(float microsDelta) {
     if (this->doneDisplayTimer > OTHER_DISPLAY_TIME * 2) {
     this->doneDisplayTimer = OTHER_DISPLAY_TIME;
   }
-  // Last thing, check if you want to store memory
-  // int neededCommit = _nonVolatileStorage.needsCommit();
-  // uint8_t dirty = 0;
-  // this->stateCompareTimer += microsDelta;
-  // if (this->stateCompareTimer > STATE_COMPARE_INTERVAL) {
-  //   this->stateCompareTimer = 0;
-  //   dirty = _nonVolatileStorage.compareAndUpdate(&activeState);
-  // }
-  // if (dirty && !neededCommit) {
-  //   Serial.println("state dirtied");
-  //   this->stateCommitTimer = 0;
-  // }
-
-  // this->stateCommitTimer += microsDelta;
-  // if (this->stateCommitTimer > STATE_COMMIT_INTERVAL * 2) {
-  //   this->stateCommitTimer = STATE_COMMIT_INTERVAL;
-  // }
-
-  // if (this->stateCommitTimer > STATE_COMMIT_INTERVAL && _nonVolatileStorage.needsCommit()) {
-  //   _nonVolatileStorage.commit();
-  // }
 };

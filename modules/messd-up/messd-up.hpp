@@ -51,18 +51,19 @@
 template <typename DataType>
 class NonVolatileStorage {
 public:
-  NonVolatileStorage(DataType *data);
-  uint8_t initialize();
-  uint8_t compareAndUpdate(DataType *newData);
-  uint8_t needsCommit();
-  uint8_t commit();
+  NonVolatileStorage();
+  uint8_t initialize(DataType *data);
   uint8_t read(int index, DataType *data);
   uint8_t store(int index, DataType *data);
-  DataType *_data;
+
 private:
+  template <typename T>
+  uint8_t _internalRead(const char *path, T *outData);
+  template <typename T>
+  uint8_t _internalStore(const char *path, T *data);
+
   LittleFS_MBED myFS;
-  const char *filename = "/littlefs/messd.txt";
-  uint8_t _needsCommit = false;
+  const char *_indexFilename = "/littlefs/index.txt";
 };
 
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
@@ -238,7 +239,6 @@ private:
     Store,
     Recall
   };
-  SerializableState committedState;
   uint32_t stateCompareTimer = STATE_COMPARE_INTERVAL;
   uint32_t stateCommitTimer = STATE_COMMIT_INTERVAL;
   NonVolatileStorage<SerializableState> _nonVolatileStorage;
