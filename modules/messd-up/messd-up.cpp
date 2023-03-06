@@ -651,8 +651,6 @@ Module::Module(): _nonVolatileStorage() {
 
 void Module::process(float microsDelta) {
 
-  while (!Serial) { delay (100); }
-
   if (!_nonVolatileStorageInitialized) {
     SerializableState initialData;
     uint8_t loaded = _nonVolatileStorage.initialize(&initialData);
