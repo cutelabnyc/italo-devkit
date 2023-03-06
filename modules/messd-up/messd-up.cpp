@@ -108,9 +108,20 @@ uint8_t NonVolatileStorage<DataType>::initialize(DataType *data)
 template <typename DataType>
 uint8_t NonVolatileStorage<DataType>::read(int index, DataType *data)
 {
+  Serial.print("Reading preset at index ");
+  Serial.println(index);
+
   char buff[128];
   sprintf(buff, "/littlefs/preset%d.txt", index);
-  return _internalRead(buff, data);
+  uint8_t status = _internalRead(buff, data);
+
+  // Store the index of the last used file
+  if (status) {
+    sprintf(buff, "%s", _indexFilename);
+    status = _internalStore(buff, &index);
+  }
+
+  return status;
 }
 
 template <typename DataType>
@@ -124,8 +135,6 @@ uint8_t NonVolatileStorage<DataType>::store(int index, DataType *data)
   uint8_t status = _internalStore(buff, data);
 
   // Store the index of the last used file
-  // Maybe we want to do this when reading, not writing?
-  // Could also do both!
   if (status) {
     sprintf(buff, "%s", _indexFilename);
     status = _internalStore(buff, &index);
