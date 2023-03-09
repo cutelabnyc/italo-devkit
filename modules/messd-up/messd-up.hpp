@@ -260,6 +260,8 @@ public:
   MessdUpHardware hardware;
 
 #if (USING_MBED_RPI_PICO)
+
+#if REVISION == 2
   struct AnalogMux {
     int BEAT_INPUT = 0;
     int TRUNCATE_ATV = 1;
@@ -270,6 +272,24 @@ public:
     int MOD_INPUT = 6;
     int TRUNCATE_INPUT = 7;
   } AnalogMux;
+
+#elif REVISION == 1
+
+  struct AnalogMux {
+    int BEAT_INPUT = 0;
+    int TRUNCATE_ATV = 1;
+    int ROUND_SWITCH = 2;
+    int DIVIDE_ATV = 3;
+    int LATCH_SWITCH = 4;
+    int DIVIDE_INPUT = 5;
+    int MOD_INPUT = 6;
+    int TRUNCATE_INPUT = 7;
+  } AnalogMux;
+
+#else
+#error "Revision undefined"
+#endif
+
 #else
   struct AnalogMux {
     int DIVIDE_ATV = 0;
@@ -288,7 +308,7 @@ public:
     int BEAT_SWITCH = 2;
     int DIV_SWITCH = 3;
     int DIVIDE_ENC_B = 4;
-    int CLOCK_IN = 5;
+    int CLOCK_IN = 5; // should be nothing...
     int DIVIDE_ENC_A = 6;
     int CLOCK_SWITCH = 7;
   } DigitalMux;

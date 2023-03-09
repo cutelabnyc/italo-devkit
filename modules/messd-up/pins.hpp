@@ -1,5 +1,32 @@
 #if USING_MBED_RPI_PICO
 
+#if REVISION == 2
+
+#define MUX_S2      p13
+#define MUX_S1      p14
+#define MUX_S0      p15
+
+#define OUTS_SHCP   p16
+#define OUTS_STCP   p17
+#define OUTS_DS     p9
+
+#define LEDS_DS     p10
+#define SSEG_STCP   p4
+#define SSEG_SHCP   p3
+#define SSEG_DS     p5
+#define CLK_JACK_SWITCH p0
+#define CLK_IN_A    p1
+
+#define MUX_1_COM   p26
+#define MUX_2_COM   p2
+#define MOD_SW      p6
+#define LEDS_STCP   p11
+#define LEDS_SHCP   p12
+
+const int SHIFT_PERMUTATION[8] = {4, 0, 2, 1, 3, 5, 6, 7};
+
+#elif REVISION == 1
+
 #define MUX_S2      p13
 #define MUX_S1      p14
 #define MUX_S0      p15
@@ -22,6 +49,11 @@
 #define LEDS_SHCP   p11
 
 const int SHIFT_PERMUTATION[8] = {4, 0, 2, 1, 3, 5, 6, 7};
+
+#else
+
+#error "Undefined revision"
+#endif
 
 #else
 

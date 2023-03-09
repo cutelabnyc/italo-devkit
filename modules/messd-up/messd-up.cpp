@@ -305,6 +305,12 @@ void Module::_processEncoders(float ratio) {
 void Module::_processTapTempo(float microsDelta) {
   int nextClockSwitch = hardware.digitalMux.getOutput(DigitalMux.CLOCK_SWITCH);
 
+  // for (int i = 0; i < 8; i++) {
+  //   if (i != 0) Serial.print(",\t");
+  //   Serial.print(hardware.digitalMux.getOutput(i));
+  // }
+  // Serial.println();
+
   if (isClockInternal) {
     if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
       unsigned long nextTapMicros = micros();
@@ -711,29 +717,57 @@ void Module::process(float microsDelta) {
 
   // Compute the final value for subdivisions and beats based on modulation
   // inputs and attenuverters
-  static int divInputRange = (DIV_INPUT_MAX - DIV_INPUT_MIN);
-  static int divInputGrain = divInputRange / (beatsDivMax - beatsDivMin);
-  static int divInputMid = (divInputRange - DIV_INPUT_MIN) / 2 + DIV_INPUT_MIN;
+  // Handle the slight asymmetry in the div input
   int divInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
+
+
+  int divInputMid, divInputRange, divInputGrain;
+  if (rawBeatInput > DIV_INPUT_MID) {
+    divInputMid = DIV_INPUT_MID;
+    divInputRange = DIV_INPUT_MAX - DIV_INPUT_MID;
+    divInputGrain = 2 * divInputRange / (beatsDivMax - beatsDivMin);
+  } else {
+    divInputMid = DIV_INPUT_MID;
+    divInputRange = DIV_INPUT_MID - DIV_INPUT_MIN;
+    divInputGrain = 2 * divInputRange / (beatsDivMax - beatsDivMin);
+  }
+
+  // static int divInputRange = (DIV_INPUT_MAX - DIV_INPUT_MIN);
+  // static int divInputGrain = divInputRange / (beatsDivMax - beatsDivMin);
+  // static int divInputMid = (divInputRange - DIV_INPUT_MIN) / 2 + DIV_INPUT_MIN;
+
   divInput = max(DIV_INPUT_MIN, min(DIV_INPUT_MAX, divInput));
   divInput -= divInputMid;
 
   static float divAttenuvertRange = (DIV_ATV_MAX - DIV_ATV_MIN);
   int divAttenuvertInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_ATV);
-  divAttenuvertInput = max(DIV_ATV_MIN, min(DIV_ATV_MAX, divInput));
+  divAttenuvertInput = max(DIV_ATV_MIN, min(DIV_ATV_MAX, divAttenuvertInput));
   float divAttenuvert =
       (float)(divAttenuvertInput - DIV_ATV_MIN) / divAttenuvertRange;
+  // Serial.println(divAttenuvert);
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
-
   int divOffset = (divInput * divAttenuvert) / divInputGrain;
+
   float divBase = activeState.subdivisions;
   activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
 
   int beatsOffset = 0;
   int beatsBase = activeState.beats;
-  static int beatInputMid = (BEAT_INPUT_MAX - BEAT_INPUT_MIN) / 2;
-  static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
-  static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
+
+  // Handle the slight asymmetry in the beat input
+  int beatInputMid, beatInputRange, beatInputGrain;
+  if (rawBeatInput > BEAT_INPUT_MID) {
+    beatInputMid = BEAT_INPUT_MID;
+    beatInputRange = BEAT_INPUT_MAX - BEAT_INPUT_MID;
+    beatInputGrain = 2 * beatInputRange / (beatsDivMax - beatsDivMin);
+  } else {
+    beatInputMid = BEAT_INPUT_MID;
+    beatInputRange = BEAT_INPUT_MID - BEAT_INPUT_MIN;
+    beatInputGrain = 2 * beatInputRange / (beatsDivMax - beatsDivMin);
+  }
+  // static int beatInputMid = (BEAT_INPUT_MAX - BEAT_INPUT_MIN) / 2;
+  // static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
+  // static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
 
   if (!activeState.beatInputResetMode) {
     int beatSigInput = rawBeatInput;
@@ -748,14 +782,12 @@ void Module::process(float microsDelta) {
   this->ins.phase = 0; // unused
   this->ins.ext_clock = clockInput == HIGH;
 
-  static int modInputMid = (MOD_INPUT_MAX + MOD_INPUT_MIN) / 2;
   this->ins.modulationSignal =
-      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) > modInputMid ? 1 : 0;
+      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) < MOD_INPUT_THRESH;
   this->ins.modulationSwitch = this->modSwitch == LOW; // active low
   this->ins.latchBeatChangesToDownbeat = activeState.beat_latch;
   this->ins.latchDivChangesToDownbeat = activeState.div_latch;
 
-  // TODO: Get this working after Max solders on the resistors
   this->ins.latchModulationToDownbeat =
       hardware.analogMux.getOutput(AnalogMux.LATCH_SWITCH) > (MAX_VOLTAGE >> 1);
   this->ins.invert = 0; // unused
@@ -983,11 +1015,11 @@ void Module::process(float microsDelta) {
 
   // Configure LEDs
   bool beatLatchDisplay = activeState.beat_latch;
-  if (activeBeats != this->messd.beatsPerMeasure) {
+  if (activeState.beat_latch && (activeBeats != this->messd.beatsPerMeasure)) {
     beatLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
   }
   bool divLatchDisplay = activeState.div_latch;
-  if (activeDiv != this->messd.subdivisionsPerMeasure) {
+  if (activeState.div_latch && (activeDiv != this->messd.subdivisionsPerMeasure)) {
     divLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
   }
   leds_sr_val[(uint8_t)LEDNames::Nothing] = HIGH;
