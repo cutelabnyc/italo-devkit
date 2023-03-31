@@ -803,6 +803,7 @@ void Module::process(float microsDelta) {
   }
   activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
+  this->ins.resyncToExternal = !isClockInternal;
   this->ins.tempo = tapTempoOut;
   this->ins.beatsPerMeasure = activeBeats;
   this->ins.subdivisionsPerMeasure = activeDiv;
