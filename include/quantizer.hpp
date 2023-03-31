@@ -36,18 +36,19 @@ public:
     _in_high = in_high;
     _out_low = out_low;
     _out_high = out_high;
-    _inverting = _out_low > _out_high;
     _hysteresis = hysteresis;
-    _grain_high = 2 * (_in_high - _in_mid) / (_out_high - _out_low + 1);
-    _grain_low = 2 * (_in_mid - _in_low) / (_out_high - _out_low + 1);
-    if (_inverting){
-      _grain_high = -_grain_high;
-      _grain_low = -_grain_low;
-    }
 
-    // Guarantee that you'll recalculate on next process
-    _break_high = _in_low;
-    _break_low = _in_high;
+    _recalculate();
+  }
+
+  /**
+   * Special reset function that only sets the input midpoint
+   * @param in_mid - Input Midpoint
+  */
+  void setInMid(int32_t in_mid)
+  {
+    _in_mid = in_mid;
+    _recalculate();
   }
 
 /**
@@ -92,6 +93,21 @@ public:
   }
 
 private:
+  void _recalculate()
+  {
+    _inverting = _out_low > _out_high;
+    _grain_high = 2 * (_in_high - _in_mid) / (_out_high - _out_low + 1);
+    _grain_low = 2 * (_in_mid - _in_low) / (_out_high - _out_low + 1);
+    if (_inverting){
+      _grain_high = -_grain_high;
+      _grain_low = -_grain_low;
+    }
+
+    // Guarantee that you'll recalculate on next process
+    _break_high = _in_low;
+    _break_low = _in_high;
+  }
+
   int32_t _in_low, _in_mid, _in_high, _out_low, _out_high;
   float _hysteresis;
   bool _inverting;

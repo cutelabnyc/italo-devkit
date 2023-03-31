@@ -1,6 +1,5 @@
 #include "messd-up.hpp"
 #include "timers.hpp"
-#include "voltages.hpp"
 
 #include <avr/interrupt.h>
 
@@ -76,7 +75,7 @@ template <typename DataType>
 NonVolatileStorage<DataType>::NonVolatileStorage() { }
 
 template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::initialize(DataType *data)
+uint8_t NonVolatileStorage<DataType>::loadLastPreset(DataType *data)
 {
   Serial.println("Initializing nonvolatlie storage");
 
@@ -88,7 +87,7 @@ uint8_t NonVolatileStorage<DataType>::initialize(DataType *data)
   char buff[512];
   sprintf(buff, "%s", _indexFilename);
   int index;
-  uint8_t status = _internalRead(buff, &index);
+  uint8_t status = read(buff, &index);
 
   if (!status) {
     Serial.println("Could not recover index of last saved preset");
@@ -96,7 +95,7 @@ uint8_t NonVolatileStorage<DataType>::initialize(DataType *data)
   }
 
   sprintf(buff, "/littlefs/preset%d.txt", index);
-  status = _internalRead(buff, data);
+  status = read(buff, data);
 
   if (!status) {
     Serial.println("Could not load stored data, using defaults");
@@ -106,38 +105,38 @@ uint8_t NonVolatileStorage<DataType>::initialize(DataType *data)
 }
 
 template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::read(int index, DataType *data)
+uint8_t NonVolatileStorage<DataType>::readPreset(int index, DataType *data)
 {
   Serial.print("Reading preset at index ");
   Serial.println(index);
 
   char buff[128];
   sprintf(buff, "/littlefs/preset%d.txt", index);
-  uint8_t status = _internalRead(buff, data);
+  uint8_t status = read(buff, data);
 
   // Store the index of the last used file
   if (status) {
     sprintf(buff, "%s", _indexFilename);
-    status = _internalStore(buff, &index);
+    status = store(buff, &index);
   }
 
   return status;
 }
 
 template <typename DataType>
-uint8_t NonVolatileStorage<DataType>::store(int index, DataType *data)
+uint8_t NonVolatileStorage<DataType>::storePreset(int index, DataType *data)
 {
   Serial.print("Storing preset at index ");
   Serial.println(index);
 
   char buff[128];
   sprintf(buff, "/littlefs/preset%d.txt", index);
-  uint8_t status = _internalStore(buff, data);
+  uint8_t status = store(buff, data);
 
   // Store the index of the last used file
   if (status) {
     sprintf(buff, "%s", _indexFilename);
-    status = _internalStore(buff, &index);
+    status = store(buff, &index);
   }
 
   return status;
@@ -145,7 +144,7 @@ uint8_t NonVolatileStorage<DataType>::store(int index, DataType *data)
 
 template <typename DataType>
 template <typename T>
-uint8_t NonVolatileStorage<DataType>::_internalRead(const char *path, T *outData)
+uint8_t NonVolatileStorage<DataType>::read(const char *path, T *outData)
 {
   char buff[512];
   uint8_t status = 0;
@@ -173,7 +172,7 @@ uint8_t NonVolatileStorage<DataType>::_internalRead(const char *path, T *outData
 
 template <typename DataType>
 template <typename T>
-uint8_t NonVolatileStorage<DataType>::_internalStore(const char *path, T *data)
+uint8_t NonVolatileStorage<DataType>::store(const char *path, T *data)
 {
   char buff[512];
   uint8_t status = 0;
@@ -385,7 +384,12 @@ void Module::_processBeatDivSwitches(float microsDelta) {
 
           if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
             activeState.beat_latch = initial_beat_latch;
-            presetDisplayTimer = 0;
+            if (calibrationPossible) {
+              doCalibrate = true;
+              calibrateDisplayTime = 0;
+            } else {
+              presetDisplayTimer = 0;
+            }
           } else {
             inputClockDivDisplayTime = 0;
           }
@@ -404,6 +408,7 @@ void Module::_processBeatDivSwitches(float microsDelta) {
     if (inputClockDivDisplayTime > OTHER_DISPLAY_TIME + 1)
       inputClockDivDisplayTime = OTHER_DISPLAY_TIME + 1;
     divHoldTime = 0.0f;
+    calibrationPossible = false;
   }
   div_switch_state_prev = hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH);
 
@@ -419,7 +424,13 @@ void Module::_processBeatDivSwitches(float microsDelta) {
           if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
             activeState.beat_latch = initial_beat_latch;
             activeState.div_latch = initial_div_latch;
-            presetDisplayTimer = 0;
+            if (calibrationPossible) {
+              doCalibrate = true;
+              calibrateDisplayTime = 0;
+            } else {
+              presetDisplayTimer = 0;
+            }
+
           } else if (canSwitchBeatInputModes) {
             activeState.beat_latch = initial_beat_latch;
             activeState.beatInputResetMode = !activeState.beatInputResetMode;
@@ -435,10 +446,10 @@ void Module::_processBeatDivSwitches(float microsDelta) {
         presetDisplayTimer = PRESET_DISPLAY_TIME;
 
         if (presetAction == PresetAction::Recall) {
-          _nonVolatileStorage.read(targetPresetIndex, &activeState);
+          _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
           doneDisplayTimer = 0;
         } else if (presetAction == PresetAction::Store) {
-          _nonVolatileStorage.store(targetPresetIndex, &activeState);
+          _nonVolatileStorage.storePreset(targetPresetIndex, &activeState);
           doneDisplayTimer = 0;
         }
 
@@ -451,9 +462,31 @@ void Module::_processBeatDivSwitches(float microsDelta) {
       beatModeDisplayTime = OTHER_DISPLAY_TIME + 1;
     beatHoldTime = 0.0f;
     canSwitchBeatInputModes = true;
+    calibrationPossible = false;
   }
   beat_switch_state_prev =
       hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH);
+}
+
+void Module::_processCalibration(float microsdelta)
+{
+  if (doCalibrate) {
+    calibratedState.modInputMid =  hardware.analogMux.getOutput(AnalogMux.MOD_INPUT);
+    calibratedState.divInputMid =  hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
+    calibratedState.beatInputMid = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
+    calibratedState.truncInputMid = hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT);
+
+    char buff[128];
+    sprintf(buff, "/littlefs/calibration.txt");
+    _nonVolatileStorage.store(buff, &calibratedState);
+
+    doCalibrate = false;
+  }
+
+  calibrateDisplayTime += microsdelta;
+  if (calibrateDisplayTime > OTHER_DISPLAY_TIME << 1) {
+    calibrateDisplayTime = OTHER_DISPLAY_TIME;
+  }
 }
 
 void Module::_display() {
@@ -489,6 +522,8 @@ void Module::_display() {
     this->displayState = DisplayState::BeatsEqualDivs;
   } else if (this->presetDisplayTimer < PRESET_DISPLAY_TIME) {
     this->displayState = DisplayState::Preset;
+  } else if (this->calibrateDisplayTime < OTHER_DISPLAY_TIME) {
+    this->displayState = DisplayState::Calibration;
   } else if (this->doneDisplayTimer < OTHER_DISPLAY_TIME) {
     this->displayState = DisplayState::Done;
   } else {
@@ -517,6 +552,8 @@ void Module::_display() {
       value = (int)SpecialDigits::Nothing;
     } else if (this->displayState == DisplayState::Preset) {
       value = (int)SpecialDigits::P;
+    } else if (this->displayState == DisplayState::Calibration) {
+      value = (int)SpecialDigits::C;
     } else if (this->displayState == DisplayState::Done) {
       value = (int)SpecialDigits::D;
     }
@@ -541,6 +578,8 @@ void Module::_display() {
       value = (int)SpecialDigits::D;
     } else if (this->displayState == DisplayState::Preset) {
       value = targetPresetIndex + 1;
+    } else if (this->displayState == DisplayState::Calibration) {
+      value = (int)SpecialDigits::A;
     } else if (this->displayState == DisplayState::Done) {
       value = 0;
     }
@@ -567,7 +606,9 @@ void Module::_display() {
       value = (int)SpecialDigits::Equals;
     } else if (this->displayState == DisplayState::Preset) {
       value = (int)SpecialDigits::Nothing;
-    }else if (this->displayState == DisplayState::Done) {
+    } else if (this->displayState == DisplayState::Calibration) {
+      value = (int)SpecialDigits::L;
+    } else if (this->displayState == DisplayState::Done) {
       value = (int)SpecialDigits::N;
     }
     break;
@@ -593,6 +634,8 @@ void Module::_display() {
         presetAction == PresetAction::Recall ?
         (int)SpecialDigits::R :
         5;
+    } else if (this->displayState == DisplayState::Calibration) {
+      value = 1;
     } else if (this->displayState == DisplayState::Done) {
       value = (int)SpecialDigits::E;
     }
@@ -671,15 +714,29 @@ Module::Module()
 void Module::process(float microsDelta) {
 
   if (!_nonVolatileStorageInitialized) {
+    // Load initial preset
     SerializableState initialData;
-    uint8_t loaded = _nonVolatileStorage.initialize(&initialData);
-    // uint8_t loaded = false;
+    uint8_t loaded = _nonVolatileStorage.loadLastPreset(&initialData);
     if (loaded) {
       memcpy(&activeState, &initialData, sizeof(SerializableState));
       tapTempoOut = activeState.tapTempo;
     }
+
+    // Load calibration
+    CalibratedState calibration;
+    char buff[128];
+    sprintf(buff, "/littlefs/calibration.txt");
+    loaded = _nonVolatileStorage.read(buff, &calibration);
+    if (loaded) {
+      memcpy(&calibratedState, &calibration, sizeof(CalibratedState));
+    }
+    _beatCVQuantizer.setInMid(calibratedState.beatInputMid);
+    _divCVQuantizer.setInMid(calibratedState.divInputMid);
+
     _nonVolatileStorageInitialized = true;
   }
+
+  // Serial.println(calibratedState.beatInputMid);
 
   isClockInternal = !digitalRead(clockJackSwitch);
   uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
@@ -689,6 +746,7 @@ void Module::process(float microsDelta) {
   // operation
   hardware.analogMux.process();
   isRoundTripMode = hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
+  _processCalibration(microsDelta);
 
   hardware.digitalMux.process();
   _processEncoders(ratio);
@@ -706,10 +764,10 @@ void Module::process(float microsDelta) {
   // return;
 
   uint16_t rawBeatInput = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
-  rawBeatInput = min(BEAT_INPUT_MAX, max(BEAT_INPUT_MIN, rawBeatInput));
-  rawBeatInput = BEAT_INPUT_MAX - rawBeatInput + BEAT_INPUT_MIN; // invert
+  uint16_t invRawBeatInput = min(BEAT_INPUT_MAX, max(BEAT_INPUT_MIN, rawBeatInput));
+  invRawBeatInput = BEAT_INPUT_MAX - invRawBeatInput + BEAT_INPUT_MIN; // invert
   char beatThreshOutput = 0;
-  thresh_process(&beatSwitchThreshold, &rawBeatInput, &beatThreshOutput);
+  thresh_process(&beatSwitchThreshold, &invRawBeatInput, &beatThreshOutput);
   uint8_t didReset = 0;
   this->ins.resetBeatCount = 0;
   if (activeState.beatInputResetMode && (beatThreshOutput && !this->lastBeatInputValue)) {
@@ -752,7 +810,7 @@ void Module::process(float microsDelta) {
   this->ins.ext_clock = clockInput == HIGH;
 
   this->ins.modulationSignal =
-      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) < MOD_INPUT_THRESH;
+      hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) < (calibratedState.modInputMid + MOD_INPUT_THRESH);
   this->ins.modulationSwitch = this->modSwitch == LOW; // active low
   this->ins.latchBeatChangesToDownbeat = activeState.beat_latch;
   this->ins.latchDivChangesToDownbeat = activeState.div_latch;
@@ -778,17 +836,17 @@ void Module::process(float microsDelta) {
       (float)(truncAttenuverterInput - TRUNC_ATV_MIN) /
       (float)truncAttenuverterRange;
   int truncationInput = hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT);
-  truncationInput = min(TRUNC_ATV_MAX, max(TRUNC_ATV_MIN, truncationInput));
-  float truncationOffset =
-      1.0f - (float)(truncationInput - TRUNC_ATV_MIN) /
-                 (float)truncInputRange;
+  truncationInput = min(TRUNC_INPUT_MAX, max(TRUNC_ATV_MIN, truncationInput));
+  float truncationOffset = 0.0f;
+  if (truncationInput > calibratedState.truncInputMid) {
+    truncationOffset = (float)(truncationInput - calibratedState.truncInputMid) / ((float) (TRUNC_INPUT_MAX - calibratedState.truncInputMid));
+  } else {
+    truncationOffset = (float)(truncationInput - calibratedState.truncInputMid) / ((float) (calibratedState.truncInputMid - TRUNC_INPUT_MIN));
+  }
+  truncationOffset *= 0.5; // right?
 
-#ifndef IS_POWERED_FROM_ARDUINO
-  truncationOffset -= 0.5f;
-  truncationOffset *= 2.0f;
-#endif
   baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
-  this->ins.truncation = baseTruncation >= 1.0f ? 1.0f : baseTruncation;
+  this->ins.truncation = baseTruncation;
 
   this->ins.pulseWidth = 0.5;
 

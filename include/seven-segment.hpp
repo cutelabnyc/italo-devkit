@@ -14,10 +14,12 @@ enum SpecialDigits {
   T = 18,
   D = 19,
   Equals = 20,
-  N = 21
+  N = 21,
+  C = 22,
+  L = 23
 };
 
-const int displayKey[22][8]{
+const int displayKey[24][8]{
     // NUMBERS
     {1, 1, 1, 1, 1, 0, 1, 0}, // ZERO
     {0, 0, 1, 0, 0, 0, 1, 0}, // ONE
@@ -43,6 +45,8 @@ const int displayKey[22][8]{
     {1, 1, 1, 0, 0, 1, 1, 0}, // D
     {0, 1, 0, 0, 0, 1, 0, 0}, // =
     {1, 0, 1, 0, 0, 1, 0, 0}, // N
+    {1, 1, 0, 1, 1, 0, 0, 0}, // C
+    {1, 1, 0, 0, 1, 0, 0, 0}, // L
 };
 
 class SevenSegmentDisplay {

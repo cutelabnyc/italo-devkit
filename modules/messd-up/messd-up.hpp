@@ -3,6 +3,7 @@
 #include "mux.hpp"
 #include "seven-segment.hpp"
 #include "quantizer.hpp"
+#include "voltages.hpp"
 
 #include <Arduino.h>
 #include <cutemodules.h>
@@ -53,16 +54,15 @@ template <typename DataType>
 class NonVolatileStorage {
 public:
   NonVolatileStorage();
-  uint8_t initialize(DataType *data);
-  uint8_t read(int index, DataType *data);
-  uint8_t store(int index, DataType *data);
+  uint8_t loadLastPreset(DataType *data);
+  uint8_t readPreset(int index, DataType *data);
+  uint8_t storePreset(int index, DataType *data);
+  template <typename T>
+  uint8_t read(const char *path, T *outData);
+  template <typename T>
+  uint8_t store(const char *path, T *data);
 
 private:
-  template <typename T>
-  uint8_t _internalRead(const char *path, T *outData);
-  template <typename T>
-  uint8_t _internalStore(const char *path, T *data);
-
   LittleFS_MBED myFS;
   const char *_indexFilename = "/littlefs/index.txt";
 };
@@ -82,6 +82,12 @@ private:
     uint8_t beatInputResetMode;
     uint8_t inputClockDivider;
   } SerializableState;
+  typedef struct CalibratedState {
+    uint16_t modInputMid;
+    uint16_t beatInputMid;
+    uint16_t divInputMid;
+    uint16_t truncInputMid;
+  } CalibratedState;
 
   Quantizer _divCVQuantizer;
   Quantizer _beatCVQuantizer;
@@ -147,6 +153,7 @@ private:
     Countdown,
     BeatsEqualDivs,
     Preset,
+    Calibration,
     Done
   };
 
@@ -189,6 +196,14 @@ private:
   uint8_t lastDownbeat = false;
   uint32_t countdownDisplayTime = COUNTDOWN_DISPLAY_TIME;
   uint16_t countdownSampleAndHold = 0;
+
+  // Calibration display and state
+  uint8_t doCalibrate = false;
+  uint8_t calibrationPossible = true;
+  uint32_t calibrateDisplayTime = OTHER_DISPLAY_TIME;
+  CalibratedState calibratedState = {
+    MOD_INPUT_MID, BEAT_INPUT_MID, DIV_INPUT_MID, TRUNC_INPUT_MID
+  };
 
   // Storage for animations on the modulate button
   bool animateModulateButton = false;
@@ -257,6 +272,7 @@ private:
   void _processTapTempo(float msDelta);
   void _processModSwitch(float msDelta);
   void _processBeatDivSwitches(float msDelta);
+  void _processCalibration(float microsdelta);
   void _display();
 
 public:
