@@ -13,7 +13,7 @@
 #define DIV_ATV_MAX       1018
 #define DIV_ATV_MIN       0
 
-#define MOD_INPUT_THRESH  350
+#define MOD_INPUT_THRESH  450
 
 #define TRUNC_ATV_MIN     2
 #define TRUNC_ATV_MAX     1019

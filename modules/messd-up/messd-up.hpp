@@ -2,6 +2,7 @@
 #include "interfaces.hpp"
 #include "mux.hpp"
 #include "seven-segment.hpp"
+#include "quantizer.hpp"
 
 #include <Arduino.h>
 #include <cutemodules.h>
@@ -81,6 +82,9 @@ private:
     uint8_t beatInputResetMode;
     uint8_t inputClockDivider;
   } SerializableState;
+
+  Quantizer _divCVQuantizer;
+  Quantizer _beatCVQuantizer;
 
   class MessdUpHardware : public Hardware<MessdUpHardware> {
   private:

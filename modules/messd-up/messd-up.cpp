@@ -660,7 +660,11 @@ void Module::initHardware() {
 
 }
 
-Module::Module(): _nonVolatileStorage() {
+Module::Module()
+: _nonVolatileStorage()
+, _divCVQuantizer(DIV_INPUT_MIN, DIV_INPUT_MID, DIV_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
+, _beatCVQuantizer(BEAT_INPUT_MIN, BEAT_INPUT_MID, BEAT_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
+ {
   MS_init(&this->messd);
 };
 
@@ -719,60 +723,25 @@ void Module::process(float microsDelta) {
   // inputs and attenuverters
   // Handle the slight asymmetry in the div input
   int divInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
-
-
-  int divInputMid, divInputRange, divInputGrain;
-  if (rawBeatInput > DIV_INPUT_MID) {
-    divInputMid = DIV_INPUT_MID;
-    divInputRange = DIV_INPUT_MAX - DIV_INPUT_MID;
-    divInputGrain = 2 * divInputRange / (beatsDivMax - beatsDivMin);
-  } else {
-    divInputMid = DIV_INPUT_MID;
-    divInputRange = DIV_INPUT_MID - DIV_INPUT_MIN;
-    divInputGrain = 2 * divInputRange / (beatsDivMax - beatsDivMin);
-  }
-
-  // static int divInputRange = (DIV_INPUT_MAX - DIV_INPUT_MIN);
-  // static int divInputGrain = divInputRange / (beatsDivMax - beatsDivMin);
-  // static int divInputMid = (divInputRange - DIV_INPUT_MIN) / 2 + DIV_INPUT_MIN;
-
   divInput = max(DIV_INPUT_MIN, min(DIV_INPUT_MAX, divInput));
-  divInput -= divInputMid;
+  int32_t qdivInput = _divCVQuantizer.process(divInput);
 
   static float divAttenuvertRange = (DIV_ATV_MAX - DIV_ATV_MIN);
   int divAttenuvertInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_ATV);
   divAttenuvertInput = max(DIV_ATV_MIN, min(DIV_ATV_MAX, divAttenuvertInput));
   float divAttenuvert =
       (float)(divAttenuvertInput - DIV_ATV_MIN) / divAttenuvertRange;
-  // Serial.println(divAttenuvert);
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
-  int divOffset = (divInput * divAttenuvert) / divInputGrain;
+  int divOffset = qdivInput * divAttenuvert;
 
   float divBase = activeState.subdivisions;
   activeDiv = min(beatsDivMax, max(beatsDivMin, divBase + divOffset));
 
   int beatsOffset = 0;
   int beatsBase = activeState.beats;
-
-  // Handle the slight asymmetry in the beat input
-  int beatInputMid, beatInputRange, beatInputGrain;
-  if (rawBeatInput > BEAT_INPUT_MID) {
-    beatInputMid = BEAT_INPUT_MID;
-    beatInputRange = BEAT_INPUT_MAX - BEAT_INPUT_MID;
-    beatInputGrain = 2 * beatInputRange / (beatsDivMax - beatsDivMin);
-  } else {
-    beatInputMid = BEAT_INPUT_MID;
-    beatInputRange = BEAT_INPUT_MID - BEAT_INPUT_MIN;
-    beatInputGrain = 2 * beatInputRange / (beatsDivMax - beatsDivMin);
-  }
-  // static int beatInputMid = (BEAT_INPUT_MAX - BEAT_INPUT_MIN) / 2;
-  // static int beatInputRange = (BEAT_INPUT_MAX - BEAT_INPUT_MIN);
-  // static int beatInputGrain = beatInputRange / (beatsDivMax - beatsDivMin);
-
   if (!activeState.beatInputResetMode) {
-    int beatSigInput = rawBeatInput;
-    beatSigInput -= (beatInputMid + BEAT_INPUT_MIN);
-    beatsOffset = beatSigInput / beatInputGrain;
+    int beatSigInput = max(BEAT_INPUT_MIN, min(BEAT_INPUT_MAX, rawBeatInput));
+    beatsOffset = _beatCVQuantizer.process(beatSigInput);
   }
   activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
