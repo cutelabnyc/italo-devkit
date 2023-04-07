@@ -198,6 +198,10 @@ uint8_t NonVolatileStorage<DataType>::store(const char *path, T *data)
   return status;
 }
 
+void Module::_beatsEqualsDivCallback(float progress) {
+  shouldDisplayBeatsEqualsDivs = (progress < 1.0f);
+}
+
 void Module::_scaleValues() {
   this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
   this->ins.beatsPerMeasure =
@@ -518,7 +522,7 @@ void Module::_display() {
     this->displayState = DisplayState::BeatMode;
   } else if (this->countdownDisplayTime < COUNTDOWN_DISPLAY_TIME && this->messd.modulationPending) {
     this->displayState = DisplayState::Countdown;
-  } else if (this->beatsEqualsDivDisplayTime < OTHER_DISPLAY_TIME) {
+  } else if (shouldDisplayBeatsEqualsDivs) {
     this->displayState = DisplayState::BeatsEqualDivs;
   } else if (this->presetDisplayTimer < PRESET_DISPLAY_TIME) {
     this->displayState = DisplayState::Preset;
@@ -707,6 +711,7 @@ Module::Module()
 : _nonVolatileStorage()
 , _divCVQuantizer(DIV_INPUT_MIN, DIV_INPUT_MID, DIV_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
 , _beatCVQuantizer(BEAT_INPUT_MIN, BEAT_INPUT_MID, BEAT_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
+, _beatsEqualsDivTimer(&_beatsEqualsDivCallback)
  {
   MS_init(&this->messd);
 };

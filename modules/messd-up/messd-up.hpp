@@ -12,19 +12,14 @@
 #if ( defined(ARDUINO_NANO_RP2040_CONNECT) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || \
       defined(ARDUINO_GENERIC_RP2040) ) && defined(ARDUINO_ARCH_MBED)
   #define USING_MBED_RPI_PICO		true
-
-  #define LFS_MBED_RP2040_VERSION_MIN_TARGET      "LittleFS_Mbed_RP2040 v1.1.0"
-  #define LFS_MBED_RP2040_VERSION_MIN             1001000
-
-  #define _LFS_LOGLEVEL_          4
-  #define RP2040_FS_SIZE_KB       64
-
-  #define FORCE_REFORMAT          false
-
-  #include <LittleFS_Mbed_RP2040.h>
 #else
   #error "Somehow these defines aren't in place"
   #define USING_MBED_RPI_PICO		false
+#endif
+
+#ifdef USING_MBED_RPI_PICO
+#define FORCE_REFORMAT false
+#include "NonVolatileStorage.hpp"
 #endif
 
 #include "pins.hpp"
@@ -50,21 +45,18 @@
 
 // #define IS_POWERED_FROM_ARDUINO
 
-template <typename DataType>
-class NonVolatileStorage {
+class Timer {
+  using TimerFunction = void (*)(float progress);
 public:
-  NonVolatileStorage();
-  uint8_t loadLastPreset(DataType *data);
-  uint8_t readPreset(int index, DataType *data);
-  uint8_t storePreset(int index, DataType *data);
-  template <typename T>
-  uint8_t read(const char *path, T *outData);
-  template <typename T>
-  uint8_t store(const char *path, T *data);
+  Timer(std::function<void(float progress)> f);
+  bool start(uint32_t maxTime);
+  bool tick(float usDelta);
+  bool active();
 
 private:
-  LittleFS_MBED myFS;
-  const char *_indexFilename = "/littlefs/index.txt";
+  TimerFunction _func;
+  uint32_t maxTime;
+  uint32_t currentTime;
 };
 
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
@@ -180,7 +172,8 @@ private:
   uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
   float modButtonFlashTimer = 0.0f;
   uint8_t modulationButtonIgnored = 0;
-  uint32_t beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME;
+  bool shouldDisplayBeatsEqualsDivs = false;
+  Timer _beatsEqualsDivTimer;
 
   // Holding down the div encoder switch
   float divHoldTime = 0.0;
@@ -266,6 +259,9 @@ private:
   uint8_t targetPresetIndex = 0;
   PresetAction presetAction = PresetAction::None;
   uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
+
+  // TimerCallbacks
+  void _beatsEqualsDivCallback(float progress);
 
   void _scaleValues();
   void _processEncoders(float ratio);
