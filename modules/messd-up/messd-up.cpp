@@ -790,6 +790,7 @@ void Module::process(float microsDelta) {
   float divAttenuvert =
       (float)(divAttenuvertInput - DIV_ATV_MIN) / divAttenuvertRange;
   divAttenuvert = 2.0f * (divAttenuvert - 0.5);
+  divAttenuvert *= 1.5; // a little boost
   int divOffset = qdivInput * divAttenuvert;
 
   float divBase = activeState.subdivisions;
@@ -798,8 +799,12 @@ void Module::process(float microsDelta) {
   int beatsOffset = 0;
   int beatsBase = activeState.beats;
   if (!activeState.beatInputResetMode) {
+    // Serial.print("b: ");
+    // Serial.print(rawBeatInput);
+    // Serial.print(", ");
     int beatSigInput = max(BEAT_INPUT_MIN, min(BEAT_INPUT_MAX, rawBeatInput));
     beatsOffset = _beatCVQuantizer.process(beatSigInput);
+    // Serial.println(beatsOffset);
   }
   activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
@@ -844,7 +849,7 @@ void Module::process(float microsDelta) {
   } else {
     truncationOffset = (float)(truncationInput - calibratedState.truncInputMid) / ((float) (calibratedState.truncInputMid - TRUNC_INPUT_MIN));
   }
-  truncationOffset *= 0.5; // right?
+  truncationOffset *= 0.8; // right?
 
   baseTruncation = fmax(0.0, fmin(1.0, baseTruncation + truncationOffset));
   this->ins.truncation = baseTruncation;
