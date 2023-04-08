@@ -4,7 +4,9 @@
 #include "seven-segment.hpp"
 #include "quantizer.hpp"
 #include "voltages.hpp"
+#include "Timer.hpp"
 
+// #include <functional>
 #include <Arduino.h>
 #include <cutemodules.h>
 
@@ -17,7 +19,7 @@
   #define USING_MBED_RPI_PICO		false
 #endif
 
-#ifdef USING_MBED_RPI_PICO
+#if USING_MBED_RPI_PICO
 #define FORCE_REFORMAT false
 #include "NonVolatileStorage.hpp"
 #endif
@@ -44,20 +46,6 @@
 #define PRESET_DISPLAY_TIME (10000000)
 
 // #define IS_POWERED_FROM_ARDUINO
-
-class Timer {
-  using TimerFunction = void (*)(float progress);
-public:
-  Timer(std::function<void(float progress)> f);
-  bool start(uint32_t maxTime);
-  bool tick(float usDelta);
-  bool active();
-
-private:
-  TimerFunction _func;
-  uint32_t maxTime;
-  uint32_t currentTime;
-};
 
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
@@ -172,8 +160,7 @@ private:
   uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
   float modButtonFlashTimer = 0.0f;
   uint8_t modulationButtonIgnored = 0;
-  bool shouldDisplayBeatsEqualsDivs = false;
-  Timer _beatsEqualsDivTimer;
+  Timer<Module> _beatsEqualsDivTimer;
 
   // Holding down the div encoder switch
   float divHoldTime = 0.0;
@@ -260,9 +247,6 @@ private:
   PresetAction presetAction = PresetAction::None;
   uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
 
-  // TimerCallbacks
-  void _beatsEqualsDivCallback(float progress);
-
   void _scaleValues();
   void _processEncoders(float ratio);
   void _processTapTempo(float msDelta);
@@ -274,6 +258,9 @@ private:
 public:
   Module();
   MessdUpHardware hardware;
+
+  // TODO: move this
+  bool shouldDisplayBeatsEqualsDivs = false;
 
 #if (USING_MBED_RPI_PICO)
 
