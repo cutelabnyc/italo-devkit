@@ -26,6 +26,7 @@
 
 #include "pins.hpp"
 
+#define NUM_TIMERS (1)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -160,7 +161,7 @@ private:
   uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
   float modButtonFlashTimer = 0.0f;
   uint8_t modulationButtonIgnored = 0;
-  Timer<Module> _beatsEqualsDivTimer;
+  Timer _beatsEqualsDivTimer;
 
   // Holding down the div encoder switch
   float divHoldTime = 0.0;
@@ -246,6 +247,12 @@ private:
   uint8_t targetPresetIndex = 0;
   PresetAction presetAction = PresetAction::None;
   uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
+
+  Timer *_timers[NUM_TIMERS] = {
+    &_beatsEqualsDivTimer
+  };
+
+  void _beatsEqualsDivCallback(float progress);
 
   void _scaleValues();
   void _processEncoders(float ratio);

@@ -2,6 +2,8 @@
 #include "timers.hpp"
 
 #include <avr/interrupt.h>
+#include <functional>
+using namespace std::placeholders;
 
 #if USING_MBED_RPI_PICO
   #include "MBED_RPi_Pico_TimerInterrupt.h"
@@ -72,10 +74,12 @@ ISR(PCINT0_vect) {
 }
 
 #pragma mark Timer Callbacks
-
-static void _beatsEqualsDivCallback() {
-  // module->shouldDisplayBeatsEqualsDivs = (progress < 1.0f);
+void Module::_beatsEqualsDivCallback(float progress)
+{
+  shouldDisplayBeatsEqualsDivs = progress < 1.0f;
 }
+
+#pragma mark -
 
 void Module::_scaleValues() {
   this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
@@ -584,8 +588,8 @@ Module::Module()
 : _nonVolatileStorage()
 , _divCVQuantizer(DIV_INPUT_MIN, DIV_INPUT_MID, DIV_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
 , _beatCVQuantizer(BEAT_INPUT_MIN, BEAT_INPUT_MID, BEAT_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
-, _beatsEqualsDivTimer()
- {
+, _beatsEqualsDivTimer(std::bind(&Module::_beatsEqualsDivCallback, this, _1))
+{
   MS_init(&this->messd);
 };
 
@@ -852,9 +856,7 @@ void Module::process(float microsDelta) {
     this->modButtonFlashTimer = 0.0;
     this->modButtonFlashCount = 0.0;
     this->modulationButtonIgnored = true;
-
-    // TODO: Add timer here
-    // this->beatsEqualsDivDisplayTime = 0;
+    _beatsEqualsDivTimer.start(OTHER_DISPLAY_TIME);
   }
   if (this->modSwitch == HIGH) {
     this->modulationButtonIgnored = false;
@@ -994,5 +996,12 @@ void Module::process(float microsDelta) {
   this->doneDisplayTimer += microsDelta;
     if (this->doneDisplayTimer > OTHER_DISPLAY_TIME * 2) {
     this->doneDisplayTimer = OTHER_DISPLAY_TIME;
+  }
+
+  for (int i = 0; i < NUM_TIMERS; i++) {
+    auto timer = _timers[i];
+    if (timer->active()) {
+      timer->tick(microsDelta);
+    }
   }
 };
