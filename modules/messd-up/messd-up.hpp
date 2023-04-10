@@ -182,7 +182,6 @@ private:
 
   // Countdown display
   uint8_t lastDownbeat = false;
-  uint32_t countdownDisplayTime = COUNTDOWN_DISPLAY_TIME;
   uint16_t countdownSampleAndHold = 0;
   Timer _countdownDisplayTimer;
 
@@ -250,8 +249,7 @@ private:
     Store,
     Recall
   };
-  uint32_t stateCompareTimer = STATE_COMPARE_INTERVAL;
-  uint32_t stateCommitTimer = STATE_COMMIT_INTERVAL;
+
   NonVolatileStorage<SerializableState> _nonVolatileStorage;
   uint8_t _nonVolatileStorageInitialized = false;
   uint8_t targetPresetIndex = 0;
@@ -290,9 +288,6 @@ private:
 public:
   Module();
   MessdUpHardware hardware;
-
-  // TODO: move this
-  bool shouldDisplayBeatsEqualsDivs = false;
 
 #if (USING_MBED_RPI_PICO)
 
