@@ -438,7 +438,8 @@ enum class DisplayState {
   BeatsEqualDivs,
   Preset,
   Calibration,
-  Done
+  Done,
+  ParamMenu
 };
 
 void Module::_display() {
@@ -466,7 +467,7 @@ void Module::_display() {
   } else if (_currentState == ModuleState::Preset) {
     displayState = DisplayState::Preset;
   } else if (_currentState == ModuleState::ParamMenu) {
-    // TODO
+    displayState = DisplayState::ParamMenu;
   } else if (_currentState == ModuleState::Default) {
     if (_temporaryDisplayState == TemporaryDisplayState::None) {
       displayState = DisplayState::Default;
@@ -484,117 +485,96 @@ void Module::_display() {
     }
   }
 
-  switch (digitCounter) {
-  case 0:
-    if (displayState == DisplayState::Tempo) {
-      value = (displayableTempo) / 1000;
-    } else if (displayState == DisplayState::Default) {
-      value = activeDiv / 10;
-    } else if (displayState == DisplayState::Pop) {
-      value = (int)SpecialDigits::Dash;
-    } else if (displayState == DisplayState::InputClockDivide) {
-      value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::BeatMode) {
-      value =
-          (int)(activeState.beatInputResetMode ? SpecialDigits::Nothing : SpecialDigits::B);
-    } else if (displayState == DisplayState::Countdown) {
-      value = countdownSampleAndHold / 1000;
-      if (value == 0)
-        value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::BeatsEqualDivs) {
-      value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::Preset) {
-      value = (int)SpecialDigits::P;
-    } else if (displayState == DisplayState::Calibration) {
-      value = (int)SpecialDigits::C;
-    } else if (displayState == DisplayState::Done) {
-      value = (int)SpecialDigits::D;
-    }
-    break;
-  case 1:
-    if (displayState == DisplayState::Tempo) {
-      value = ((displayableTempo) / 100) % 10;
-    } else if (displayState == DisplayState::Default) {
-      value = activeDiv % 10;
-      decimal = this->outs.subdivision;
-    } else if (displayState == DisplayState::Pop) {
-      value = (int)SpecialDigits::Dash;
-    } else if (displayState == DisplayState::InputClockDivide) {
-      value = (int)1;
-    } else if (displayState == DisplayState::BeatMode) {
-      value = (int)(activeState.beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
-    } else if (displayState == DisplayState::Countdown) {
-      value = countdownSampleAndHold / 100;
-      if (value == 0)
-        value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::BeatsEqualDivs) {
-      value = (int)SpecialDigits::D;
-    } else if (displayState == DisplayState::Preset) {
-      value = targetPresetIndex + 1;
-    } else if (displayState == DisplayState::Calibration) {
-      value = (int)SpecialDigits::A;
-    } else if (displayState == DisplayState::Done) {
-      value = 0;
-    }
-    break;
-  case 2:
-    if (displayState == DisplayState::Tempo) {
-      value = ((displayableTempo) / 10) % 10;
-      decimal = tempoDecimal;
-    } else if (displayState == DisplayState::Default) {
-      value = activeBeats / 10;
-    } else if (displayState == DisplayState::Pop) {
-      value = (int)SpecialDigits::Dash;
-    } else if (displayState == DisplayState::InputClockDivide) {
-      value = activeState.inputClockDivider / 10;
-      if (value == 0)
-        value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::BeatMode) {
-      value = (activeState.beatInputResetMode ? 5 : (int)SpecialDigits::A);
-    } else if (displayState == DisplayState::Countdown) {
-      value = countdownSampleAndHold / 10;
-      if (value == 0)
-        value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::BeatsEqualDivs) {
-      value = (int)SpecialDigits::Equals;
-    } else if (displayState == DisplayState::Preset) {
-      value = (int)SpecialDigits::Nothing;
-    } else if (displayState == DisplayState::Calibration) {
-      value = (int)SpecialDigits::L;
-    } else if (displayState == DisplayState::Done) {
-      value = (int)SpecialDigits::N;
-    }
-    break;
-  case 3:
-    if (displayState == DisplayState::Tempo) {
-      value = displayableTempo % 10;
-    } else if (displayState == DisplayState::Default) {
-      value = activeBeats % 10;
-      decimal = this->outs.beat;
-    } else if (displayState == DisplayState::Pop) {
-      value = (int)SpecialDigits::Dash;
-    } else if (displayState == DisplayState::InputClockDivide) {
-      value = activeState.inputClockDivider % 10;
-    } else if (displayState == DisplayState::BeatMode) {
-      value = (int)SpecialDigits::T;
-    } else if (displayState == DisplayState::Countdown) {
-      value = countdownSampleAndHold % 10;
-    } else if (displayState == DisplayState::BeatsEqualDivs) {
-      value = (int)SpecialDigits::B;
-    } else if (displayState == DisplayState::Preset) {
-      value = presetAction == PresetAction::None ?
+  int outValue[4];
+  int outDecimal[4] = { 0, 0, 0, 0 };
+
+  switch (displayState) {
+    case DisplayState::Tempo:
+      outValue[0] = (displayableTempo) / 1000;
+      outValue[1] = ((displayableTempo) / 100) % 10;
+      outValue[2] = ((displayableTempo) / 10) % 10;
+      outDecimal[2] = tempoDecimal;
+      outValue[3] = displayableTempo % 10;
+      break;
+    case DisplayState::Default:
+      outValue[0] = activeDiv / 10;
+      outValue[1] = activeDiv % 10;
+      outDecimal[1] = this->outs.subdivision;
+      outValue[2] = activeBeats / 10;
+      outValue[3] = activeBeats % 10;
+      outDecimal[3] = this->outs.beat;
+      break;
+    case DisplayState::Pop:
+      outValue[0] = (int)SpecialDigits::Dash;
+      outValue[1] = (int)SpecialDigits::Dash;
+      outValue[2] = (int)SpecialDigits::Dash;
+      outValue[3] = (int)SpecialDigits::Dash;
+      break;
+    case DisplayState::InputClockDivide:
+      outValue[0] = (int)SpecialDigits::Nothing;
+      outValue[1] = (int)1;
+      outValue[2] = activeState.inputClockDivider / 10;
+      if (outValue[2] == 0)
+        outValue[2] = (int)SpecialDigits::Nothing;
+      outValue[3] = activeState.inputClockDivider % 10;
+      break;
+    case DisplayState::BeatMode:
+      if (activeState.beatInputResetMode) {
+        outValue[0] = (int) SpecialDigits::Nothing;
+        outValue[1] = (int) SpecialDigits::R;
+        outValue[2] = (int) 5;
+        outValue[3] = (int) SpecialDigits::T;
+      } else {
+        outValue[0] = (int) SpecialDigits::B;
+        outValue[1] = (int) SpecialDigits::E;
+        outValue[2] = (int) SpecialDigits::A;
+        outValue[3] = (int) SpecialDigits::T;
+      }
+      break;
+    case DisplayState::Countdown:
+      outValue[0] = countdownSampleAndHold / 1000;
+      if (outValue[0] == 0)
+        outValue[0] = (int)SpecialDigits::Nothing;
+      outValue[1] = countdownSampleAndHold / 100;
+      if (outValue[1] == 0)
+        outValue[1] = (int)SpecialDigits::Nothing;
+      outValue[2] = countdownSampleAndHold / 10;
+      if (outValue[2] == 0)
+        outValue[2] = (int)SpecialDigits::Nothing;
+      outValue[3] = countdownSampleAndHold % 10;
+      break;
+    case DisplayState::BeatsEqualDivs:
+      outValue[0] = (int) SpecialDigits::Nothing;
+      outValue[1] = (int) SpecialDigits::B;
+      outValue[2] = (int) SpecialDigits::Equals;
+      outValue[3] = (int) SpecialDigits::D;
+      break;
+    case DisplayState::Preset:
+      outValue[0] = (int) SpecialDigits::P;
+      outValue[1] = (int) targetPresetIndex + 1;
+      outValue[2] = (int) SpecialDigits::Nothing;
+      outValue[3] = presetAction == PresetAction::None ?
         (int)SpecialDigits::Nothing :
         presetAction == PresetAction::Recall ?
         (int)SpecialDigits::R :
         5;
-    } else if (displayState == DisplayState::Calibration) {
-      value = 1;
-    } else if (displayState == DisplayState::Done) {
-      value = (int)SpecialDigits::E;
-    }
-    break;
+      break;
+    case DisplayState::Calibration:
+      outValue[0] = (int) SpecialDigits::C;
+      outValue[1] = (int) SpecialDigits::A;
+      outValue[2] = (int) SpecialDigits::L;
+      outValue[3] = (int) 1;
+      break;
+    case DisplayState::Done:
+      outValue[0] = (int) SpecialDigits::D;
+      outValue[1] = (int) 0;
+      outValue[2] = (int) SpecialDigits::N;
+      outValue[3] = (int) SpecialDigits::E;
+      break;
   }
 
+  value = outValue[digitCounter];
+  decimal = outDecimal[digitCounter];
   hardware.sevenSegmentDisplay.process(digitCounter, value, decimal, colon);
 }
 

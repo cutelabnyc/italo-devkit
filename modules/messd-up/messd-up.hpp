@@ -128,10 +128,15 @@ private:
     Default = 0,
     Tempo,
     Preset,
-    ParamMenu
+    ParamMenu,
+    ClockCount,
+    BeatInput,
+    Duty,
+    ModStyle
   };
 
   ModuleState _currentState = ModuleState::Default;
+  int _menuIndex = 0;
 
   // Temporary display states
   enum class TemporaryDisplayState {
