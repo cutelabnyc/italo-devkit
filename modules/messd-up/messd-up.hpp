@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (1)
+#define NUM_TIMERS (3)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -50,29 +50,15 @@
 
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
-  messd_t messd;
-  messd_ins_t ins;
-  messd_outs_t outs;
 
-  typedef struct SerializableState {
-    int beats;
-    int subdivisions;
-    float tapTempo;
-    uint8_t div_latch;
-    uint8_t beat_latch;
-    uint8_t beatInputResetMode;
-    uint8_t inputClockDivider;
-  } SerializableState;
-  typedef struct CalibratedState {
-    uint16_t modInputMid;
-    uint16_t beatInputMid;
-    uint16_t divInputMid;
-    uint16_t truncInputMid;
-  } CalibratedState;
-
-  Quantizer _divCVQuantizer;
-  Quantizer _beatCVQuantizer;
-
+  static const int beatsDivMin = 2;
+  static const int beatsDivMax = 32;
+  static const int tempoMin = 10;
+  static const int tempoMax = 500;
+  static const int tapTempoMin = 40;
+  static const int tapTempoMax = 280;
+  static const int inputClockDivideMin = 1;
+  static const int inputClockDivideMax = 9;
   class MessdUpHardware : public Hardware<MessdUpHardware> {
   private:
     uint8_t muxPins[3] = {MUX_S0, MUX_S1, MUX_S2};
@@ -96,6 +82,30 @@ private:
     Encoder beat = Encoder(HIGH, HIGH, 0);
   };
 
+  messd_t messd;
+  messd_ins_t ins;
+  messd_outs_t outs;
+
+  typedef struct SerializableState {
+    int beats;
+    int subdivisions;
+    float tapTempo;
+    uint8_t div_latch;
+    uint8_t beat_latch;
+    uint8_t beatInputResetMode;
+    uint8_t inputClockDivider;
+  } SerializableState;
+
+  typedef struct Calibration {
+    uint16_t modInputMid;
+    uint16_t beatInputMid;
+    uint16_t divInputMid;
+    uint16_t truncInputMid;
+  } Calibration;
+
+  Quantizer _divCVQuantizer;
+  Quantizer _beatCVQuantizer;
+
   void HardwareRead(messd_ins_t *ins, messd_outs_t *outs);
   void HardwareWrite(messd_ins_t *ins, messd_outs_t *outs);
 
@@ -103,16 +113,6 @@ private:
   unsigned long lastRecordedHighClockTime = 0;
   unsigned long measuredPeriod = 500000;
   uint8_t hasProcessedHighClock = false;
-
-  // consts
-  static const int beatsDivMin = 2;
-  static const int beatsDivMax = 32;
-  static const int tempoMin = 10;
-  static const int tempoMax = 500;
-  static const int tapTempoMin = 40;
-  static const int tapTempoMax = 280;
-  static const int inputClockDivideMin = 1;
-  static const int inputClockDivideMax = 9;
 
   uint8_t digitCounter = 0;
 
@@ -123,6 +123,16 @@ private:
   uint8_t beatsEncA = 0;
   uint8_t beatsEncB = 0;
   uint8_t encStateBeats = 0;
+
+  // Different module states
+  enum class ModuleState {
+    Default = 0,
+    Tempo,
+    Preset,
+    ParamMenu
+  };
+
+  ModuleState _currentState = ModuleState::Default;
 
   // Different display types
   enum class DisplayState {
@@ -182,7 +192,7 @@ private:
   uint8_t doCalibrate = false;
   uint8_t calibrationPossible = true;
   uint32_t calibrateDisplayTime = OTHER_DISPLAY_TIME;
-  CalibratedState calibratedState = {
+  Calibration calibratedState = {
     MOD_INPUT_MID, BEAT_INPUT_MID, DIV_INPUT_MID, TRUNC_INPUT_MID
   };
 
@@ -222,7 +232,10 @@ private:
   uint8_t beat_switch_state_prev = 0;
   uint8_t div_switch_state_prev = 0;
   uint8_t canSwitchBeatInputModes = 1;
-  float latchPulseTimer = 0.0f;
+  bool _beatLatchFlashState = false;
+  Timer _beatLatchFlashTimer;
+  bool _divLatchFlashState = false;
+  Timer _divLatchFlashTimer;
 
   // Serializable state that can go into EEPROM
   SerializableState activeState = {
@@ -249,11 +262,17 @@ private:
   uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
 
   Timer *_timers[NUM_TIMERS] = {
-    &_beatsEqualsDivTimer
+    &_beatsEqualsDivTimer,
+    &_beatLatchFlashTimer,
+    &_divLatchFlashTimer
   };
 
   void _beatsEqualsDivCallback(float progress);
+  void _beatLatchTimerCallback(float progress);
+  void _divLatchTimerCallback(float progress);
 
+  void _initializeFromSavedData();
+  void _transitionCurrentState();
   void _scaleValues();
   void _processEncoders(float ratio);
   void _processTapTempo(float msDelta);
@@ -261,6 +280,7 @@ private:
   void _processBeatDivSwitches(float msDelta);
   void _processCalibration(float microsdelta);
   void _display();
+  void _displayLatchLEDs();
 
 public:
   Module();

@@ -52,7 +52,6 @@ static TIMER_HEADER(TimerHandler)
   }
 TIMER_FOOTER()
 
-// TODO: Figure out how to use this interrupt pin on rp2040
 #if USING_MBED_RPI_PICO
 void clockPinInterrupt() {
   if (digitalRead(clockIn)) {
@@ -79,7 +78,54 @@ void Module::_beatsEqualsDivCallback(float progress)
   shouldDisplayBeatsEqualsDivs = progress < 1.0f;
 }
 
+void Module::_beatLatchTimerCallback(float progress)
+{
+  _beatLatchFlashState = (progress < 0.5f);
+}
+
+void Module::_divLatchTimerCallback(float progress)
+{
+  _divLatchFlashState = (progress < 0.5f);
+}
+
 #pragma mark -
+
+void Module::_initializeFromSavedData()
+{
+  // Load initial preset
+  SerializableState initialData;
+  uint8_t loaded = _nonVolatileStorage.loadLastPreset(&initialData);
+  if (loaded) {
+    memcpy(&activeState, &initialData, sizeof(SerializableState));
+    tapTempoOut = activeState.tapTempo;
+  }
+
+  // Load calibration
+  Calibration calibration;
+  char buff[128];
+  sprintf(buff, "/littlefs/calibration.txt");
+  loaded = _nonVolatileStorage.read(buff, &calibration);
+  if (loaded) {
+    memcpy(&calibratedState, &calibration, sizeof(Calibration));
+  }
+  _beatCVQuantizer.setInMid(calibratedState.beatInputMid);
+  _divCVQuantizer.setInMid(calibratedState.divInputMid);
+
+  _nonVolatileStorageInitialized = true;
+}
+
+void Module::_transitionCurrentState()
+{
+  if (_currentState == ModuleState::Default) {
+    if (this->clockSwitch == LOW && isClockInternal) {
+      _currentState = ModuleState::Tempo;
+    }
+  } else if (_currentState == ModuleState::Tempo) {
+    if (this->clockSwitch == HIGH || !isClockInternal) {
+      _currentState = ModuleState::Default;
+    }
+  }
+}
 
 void Module::_scaleValues() {
   this->ins.tempo = (this->ins.tempo > 0 ? this->ins.tempo : 1);
@@ -105,38 +151,38 @@ void Module::_processEncoders(float ratio) {
   float incScale = ratio;
 
   if (inc != 0) {
+    if (_currentState == ModuleState::Default) {
+      // You can't change beats when you're in a round trip modulation, in latch
+      // mode
+      if (!(messd.inRoundTripModulation && ins.latchModulationToDownbeat)) {
+        activeState.beats += inc;
+        if (activeState.beats < beatsDivMin)
+          activeState.beats = beatsDivMax;
+        if (activeState.beats > beatsDivMax)
+          activeState.beats = beatsDivMin;
+      }
+    }
 
-    // When you hold down the clock button, you set the tempo with the knobs
-    if (this->clockSwitch == LOW && isClockInternal) {
+    else if (_currentState == ModuleState::Tempo) {
       activeState.tapTempo += inc * incScale * 0.1;
       tapTempoOut += inc * incScale * 0.1;
       if (activeState.tapTempo < Module::tempoMin)
         activeState.tapTempo = tapTempoOut = Module::tempoMin;
       if (activeState.tapTempo > Module::tempoMax)
         activeState.tapTempo = tapTempoOut = Module::tempoMax;
-    } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
-      // No-op, the beat encoder doesn't do anything here
-    } else if (presetDisplayTimer < PRESET_DISPLAY_TIME) {
-      presetDisplayTimer = 0;
+    }
+
+    else if (_currentState == ModuleState::Preset) {
+      // TODO: Preset Display Timer
       if (presetAction == PresetAction::None || presetAction == PresetAction::Store) {
         presetAction = PresetAction::Recall;
       } else {
         presetAction = PresetAction::Store;
       }
-    } else {
-      this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
-      this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
+    }
 
-      // You can't change beats when you're in a round trip modulation, in latch
-      // mode
-      if (!(messd.inRoundTripModulation && ins.latchModulationToDownbeat)) {
-        activeState.beats += inc;
-        this->latchPulseTimer = 0.0f;
-        if (activeState.beats < beatsDivMin)
-          activeState.beats = beatsDivMax;
-        if (activeState.beats > beatsDivMax)
-          activeState.beats = beatsDivMin;
-      }
+    else if (_currentState == ModuleState::ParamMenu) {
+      // TODO
     }
   }
 
@@ -145,15 +191,34 @@ void Module::_processEncoders(float ratio) {
       hardware.digitalMux.getOutput(DigitalMux.DIVIDE_ENC_B));
 
   if (inc != 0) {
-    // When you hold down the clock button, you set the tempo with the knobs
-    if (this->clockSwitch == LOW && isClockInternal) {
+
+    if (_currentState == ModuleState::Default) {
+      activeState.subdivisions += inc;
+      if (activeState.subdivisions < beatsDivMin)
+        activeState.subdivisions = beatsDivMax;
+      if (activeState.subdivisions > beatsDivMax)
+        activeState.subdivisions = beatsDivMin;
+    }
+
+    else if (_currentState == ModuleState::Tempo) {
       activeState.tapTempo += inc * 10 * incScale;
       tapTempoOut += inc * 10 * incScale;
       if (activeState.tapTempo < Module::tempoMin)
         activeState.tapTempo = tapTempoOut = Module::tempoMin;
       if (activeState.tapTempo > Module::tempoMax)
         activeState.tapTempo = tapTempoOut = Module::tempoMax;
-    } else if (inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
+    }
+
+    else if (_currentState == ModuleState::Preset) {
+      // TODO: Preset display timer
+      targetPresetIndex += inc;
+      if (targetPresetIndex < 0) targetPresetIndex = 9 - ( abs(targetPresetIndex) % 9);
+      if (targetPresetIndex >= 9) targetPresetIndex %= 9;
+    }
+
+    else if (_currentState == ModuleState::ParamMenu) {
+      // TODO: Handle the param menu stuff here
+
       activeState.inputClockDivider += inc;
       this->inputClockDivDisplayTime = 0.0f;
       if (activeState.inputClockDivider < Module::inputClockDivideMin) {
@@ -163,33 +228,12 @@ void Module::_processEncoders(float ratio) {
       }
 
       atomicInputClockDivider = activeState.inputClockDivider;
-    } else if (presetDisplayTimer < PRESET_DISPLAY_TIME) {
-      presetDisplayTimer = 0;
-      targetPresetIndex += inc;
-      if (targetPresetIndex < 0) targetPresetIndex = 9 - ( abs(targetPresetIndex) % 9);
-      if (targetPresetIndex >= 9) targetPresetIndex %= 9;
-    } else {
-      this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
-      this->beatModeDisplayTime = OTHER_DISPLAY_TIME;
-
-      activeState.subdivisions += inc;
-      this->latchPulseTimer = 0.0f;
-      if (activeState.subdivisions < beatsDivMin)
-        activeState.subdivisions = beatsDivMax;
-      if (activeState.subdivisions > beatsDivMax)
-        activeState.subdivisions = beatsDivMin;
     }
   }
 }
 
 void Module::_processTapTempo(float microsDelta) {
   int nextClockSwitch = hardware.digitalMux.getOutput(DigitalMux.CLOCK_SWITCH);
-
-  // for (int i = 0; i < 8; i++) {
-  //   if (i != 0) Serial.print(",\t");
-  //   Serial.print(hardware.digitalMux.getOutput(i));
-  // }
-  // Serial.println();
 
   if (isClockInternal) {
     if (nextClockSwitch == LOW && this->clockSwitch == HIGH) {
@@ -223,15 +267,7 @@ void Module::_processTapTempo(float microsDelta) {
         activeState.tapTempo = tapTempoOut = Module::tapTempoMax;
     }
 
-    if (nextClockSwitch != LOW) {
-      this->tempoDisplayTime += microsDelta;
-      if (this->tempoDisplayTime > TEMPO_DISPLAY_TIME * 2) {
-        this->tempoDisplayTime = TEMPO_DISPLAY_TIME;
-      }
-    } else {
-      this->tempoDisplayTime = 0;
-      this->inputClockDivDisplayTime = OTHER_DISPLAY_TIME;
-    }
+    // TODO: Tempo display timer
   }
 
   this->clockSwitch = nextClockSwitch;
@@ -526,6 +562,41 @@ void Module::_display() {
   hardware.sevenSegmentDisplay.process(digitCounter, value, decimal, colon);
 }
 
+void Module::_displayLatchLEDs()
+{
+  if (activeState.beat_latch) {
+    if (activeState.beats != messd.beatsPerMeasure) {
+      if (!_beatLatchFlashTimer.active()) {
+        _beatLatchFlashTimer.start(LATCH_PULSE_TIME, -1);
+      }
+    } else {
+      _beatLatchFlashTimer.clear();
+    }
+  }
+
+  if (activeState.div_latch) {
+    if (activeState.subdivisions != messd.subdivisionsPerMeasure) {
+      if (!_divLatchFlashTimer.active()) {
+        _divLatchFlashTimer.start(LATCH_PULSE_TIME, -1);
+      }
+    } else {
+      _divLatchFlashTimer.clear();
+    }
+  }
+
+  bool beatLatchDisplay = activeState.beat_latch;
+  if (activeState.beats != messd.beatsPerMeasure) {
+    beatLatchDisplay = _beatLatchFlashState;
+  }
+  bool divLatchDisplay = activeState.div_latch;
+  if (activeState.subdivisions != messd.subdivisionsPerMeasure) {
+    divLatchDisplay = _divLatchFlashState;
+  }
+
+  leds_sr_val[(uint8_t)LEDNames::BeatLatchLED] = beatLatchDisplay ? LOW : HIGH;
+  leds_sr_val[(uint8_t)LEDNames::DivLatchLED] = divLatchDisplay ? LOW : HIGH;
+}
+
 void Module::HardwareRead(messd_ins_t *ins, messd_outs_t *outs){};
 void Module::HardwareWrite(messd_ins_t *ins, messd_outs_t *outs){};
 
@@ -534,11 +605,7 @@ void Module::initHardware() {
 
   thresh_init(&beatSwitchThreshold, BEAT_INPUT_THRESH, BEAT_INPUT_HIST);
 
-  // while (!Serial) {}
-  // delay (100);
-
 // Enable interrupts for the clock input pin
-// TODO: rp2040
 #if USING_MBED_RPI_PICO
   attachInterrupt(digitalPinToInterrupt(clockIn), &clockPinInterrupt, CHANGE);
 #else
@@ -589,6 +656,8 @@ Module::Module()
 , _divCVQuantizer(DIV_INPUT_MIN, DIV_INPUT_MID, DIV_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
 , _beatCVQuantizer(BEAT_INPUT_MIN, BEAT_INPUT_MID, BEAT_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
 , _beatsEqualsDivTimer(std::bind(&Module::_beatsEqualsDivCallback, this, _1))
+, _beatLatchFlashTimer((std::bind(&Module::_beatLatchTimerCallback, this, _1)))
+, _divLatchFlashTimer((std::bind(&Module::_divLatchTimerCallback, this, _1)))
 {
   MS_init(&this->messd);
 };
@@ -596,54 +665,24 @@ Module::Module()
 void Module::process(float microsDelta) {
 
   if (!_nonVolatileStorageInitialized) {
-    // Load initial preset
-    SerializableState initialData;
-    uint8_t loaded = _nonVolatileStorage.loadLastPreset(&initialData);
-    if (loaded) {
-      memcpy(&activeState, &initialData, sizeof(SerializableState));
-      tapTempoOut = activeState.tapTempo;
-    }
-
-    // Load calibration
-    CalibratedState calibration;
-    char buff[128];
-    sprintf(buff, "/littlefs/calibration.txt");
-    loaded = _nonVolatileStorage.read(buff, &calibration);
-    if (loaded) {
-      memcpy(&calibratedState, &calibration, sizeof(CalibratedState));
-    }
-    _beatCVQuantizer.setInMid(calibratedState.beatInputMid);
-    _divCVQuantizer.setInMid(calibratedState.divInputMid);
-
-    _nonVolatileStorageInitialized = true;
+    _initializeFromSavedData();
   }
-
-  // Serial.println(calibratedState.beatInputMid);
 
   isClockInternal = !digitalRead(clockJackSwitch);
   uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
   float ratio = (float) this->messd.tempoDivide / (float) this->messd.tempoMultiply;
 
-  // Let's process the encoders as often as we can, basically after every big
-  // operation
   hardware.analogMux.process();
   isRoundTripMode = hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
   _processCalibration(microsDelta);
 
   hardware.digitalMux.process();
+  _transitionCurrentState();
   _processEncoders(ratio);
 
   _processTapTempo(microsDelta);
   _processModSwitch(microsDelta);
   _processBeatDivSwitches(microsDelta);
-
-  // for (int i = 0; i < 8; i++) {
-  //   if (i != 0) Serial.print(",\t");
-  //   Serial.print(hardware.analogMux.getOutput(i));
-  // }
-  // Serial.println();
-
-  // return;
 
   uint16_t rawBeatInput = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
   uint16_t invRawBeatInput = min(BEAT_INPUT_MAX, max(BEAT_INPUT_MIN, rawBeatInput));
@@ -776,6 +815,7 @@ void Module::process(float microsDelta) {
   this->ins.delta = ((float)offset) / 1000.0;
 
   hardware.digitalMux.process();
+  _transitionCurrentState();
   _processEncoders(ratio);
 
   MS_process(&this->messd, &this->ins, &this->outs);
@@ -900,6 +940,7 @@ void Module::process(float microsDelta) {
   }
 
   hardware.digitalMux.process();
+  _transitionCurrentState();
   _processEncoders(ratio);
 
   // Configure outputs
@@ -929,14 +970,6 @@ void Module::process(float microsDelta) {
   hardware.moduleOuts.process(this->output_sr_val, 8, true);
 
   // Configure LEDs
-  bool beatLatchDisplay = activeState.beat_latch;
-  if (activeState.beat_latch && (activeBeats != this->messd.beatsPerMeasure)) {
-    beatLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
-  }
-  bool divLatchDisplay = activeState.div_latch;
-  if (activeState.div_latch && (activeDiv != this->messd.subdivisionsPerMeasure)) {
-    divLatchDisplay = this->latchPulseTimer > (LATCH_PULSE_TIME / 2.0f);
-  }
   leds_sr_val[(uint8_t)LEDNames::Nothing] = HIGH;
   leds_sr_val[(uint8_t)LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::EoMLED] =
@@ -946,15 +979,8 @@ void Module::process(float microsDelta) {
   leds_sr_val[(uint8_t)LEDNames::DownbeatLED] =
       this->outs.downbeat ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
-  leds_sr_val[(uint8_t)LEDNames::BeatLatchLED] = beatLatchDisplay ? LOW : HIGH;
-  leds_sr_val[(uint8_t)LEDNames::DivLatchLED] = divLatchDisplay ? LOW : HIGH;
+  _displayLatchLEDs();
 
-  // about 100 msec
-  // for (int i = 0; i < 8; i++) {
-  //   if (i != 0) Serial.print(", ");
-  //   Serial.print(leds_sr_val[i]);
-  // }
-  // Serial.println();
   hardware.moduleLEDs.process(this->leds_sr_val, 8, true);
 
   this->scaledTempo = this->outs.scaledTempo;
@@ -963,15 +989,12 @@ void Module::process(float microsDelta) {
   _display();
 
   hardware.digitalMux.process();
+  _transitionCurrentState();
   _processEncoders(ratio);
 
   this->eomBuffer += microsDelta;
   if (this->eomBuffer > 5000000)
     this->eomBuffer = 5000000;
-  this->latchPulseTimer += microsDelta;
-  if (this->latchPulseTimer > LATCH_PULSE_TIME) {
-    this->latchPulseTimer = fmod(this->latchPulseTimer, LATCH_PULSE_TIME);
-  }
 
   if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
     this->modButtonFlashTimer += microsDelta;

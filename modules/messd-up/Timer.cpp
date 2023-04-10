@@ -3,11 +3,12 @@
 Timer::Timer(TimerFunction callback)
 : _callback(callback) { }
 
-void Timer::start(int maxTime)
+void Timer::start(int maxTime, int repeats)
 {
   _active = true;
   _maxTime = maxTime;
   _currentTime = 0;
+  _repeats = repeats;
 }
 
 bool Timer::tick(float usDelta)
@@ -19,11 +20,28 @@ bool Timer::tick(float usDelta)
   _callback(progress);
 
   bool done = progress >= 1.0f;
-  _active = !done;
-  return done;
+
+  if (done) {
+    if (_repeats >= 0) {
+      _repeats--;
+      if (_repeats <= 0) {
+        _repeats = 0;
+        _active = false;
+      }
+    }
+
+    _currentTime = (_currentTime % _maxTime);
+  }
+
+  return !_active;
 }
 
 bool Timer::active()
 {
   return _active;
+}
+
+void Timer::clear()
+{
+  _active = false;
 }
