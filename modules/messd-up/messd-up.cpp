@@ -90,8 +90,19 @@ void Module::_divLatchTimerCallback(float progress)
 
 void Module::_presetTimerCallback(float progress)
 {
-  if (_currentState == ModuleState::Preset) {
-    _currentState = ModuleState::Default;
+  if (progress >= 1.0f) {
+    if (_currentState == ModuleState::Preset) {
+      _currentState = ModuleState::Default;
+    }
+  }
+}
+
+void Module::_tempoDisplayTimerCallback(float progress)
+{
+  if (progress >= 1.0f) {
+    if (_currentState == ModuleState::Tempo) {
+      _currentState = ModuleState::Default;
+    }
   }
 }
 
@@ -119,19 +130,6 @@ void Module::_initializeFromSavedData()
   _divCVQuantizer.setInMid(calibratedState.divInputMid);
 
   _nonVolatileStorageInitialized = true;
-}
-
-void Module::_transitionCurrentState()
-{
-  if (_currentState == ModuleState::Default) {
-    if (this->clockSwitch == LOW && isClockInternal) {
-      _currentState = ModuleState::Tempo;
-    }
-  } else if (_currentState == ModuleState::Tempo) {
-    if (this->clockSwitch == HIGH || !isClockInternal) {
-      _currentState = ModuleState::Default;
-    }
-  }
 }
 
 void Module::_scaleValues() {
@@ -274,7 +272,11 @@ void Module::_processTapTempo(float microsDelta) {
         activeState.tapTempo = tapTempoOut = Module::tapTempoMax;
     }
 
-    // TODO: Tempo display timer
+  }
+
+  if (nextClockSwitch == LOW) {
+    _displayTemporaryWithTimer(TemporaryDisplayState::Tempo, &_tempoDisplayTimer, TEMPO_DISPLAY_TIME);
+    _currentState = ModuleState::Tempo;
   }
 
   this->clockSwitch = nextClockSwitch;
@@ -436,8 +438,7 @@ void Module::_display() {
 
   if (this->outs.resetPending) {
     this->displayState = DisplayState::Pop;
-  } else if (this->clockSwitch == LOW ||
-             this->tempoDisplayTime < TEMPO_DISPLAY_TIME) {
+  } else if (this->clockSwitch == LOW || _currentState == ModuleState::Tempo) {
     this->displayState = DisplayState::Tempo;
   } else if (this->inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
     this->displayState = DisplayState::InputClockDivide;
@@ -573,6 +574,19 @@ void Module::_display() {
   hardware.sevenSegmentDisplay.process(digitCounter, value, decimal, colon);
 }
 
+void Module::_displayTemporaryWithTimer(Module::TemporaryDisplayState display, Timer *timer, int maxTime)
+{
+  if (_temporaryDisplayTimer != nullptr) {
+    _temporaryDisplayTimer->clear();
+  }
+
+  _temporaryDisplayState = display;
+  if (timer != nullptr) {
+    timer->start(maxTime);
+    _temporaryDisplayTimer = timer;
+  }
+}
+
 void Module::_displayLatchLEDs()
 {
   if (activeState.beat_latch) {
@@ -670,6 +684,7 @@ Module::Module()
 , _beatLatchFlashTimer((std::bind(&Module::_beatLatchTimerCallback, this, _1)))
 , _divLatchFlashTimer((std::bind(&Module::_divLatchTimerCallback, this, _1)))
 , _presetDisplayTimer((std::bind(&Module::_presetTimerCallback, this, _1)))
+, _tempoDisplayTimer((std::bind(&Module::_tempoDisplayTimerCallback, this, _1)))
 {
   MS_init(&this->messd);
 };
@@ -689,10 +704,9 @@ void Module::process(float microsDelta) {
   _processCalibration(microsDelta);
 
   hardware.digitalMux.process();
-  _transitionCurrentState();
+  _processTapTempo(microsDelta);
   _processEncoders(ratio);
 
-  _processTapTempo(microsDelta);
   _processModSwitch(microsDelta);
   _processBeatDivSwitches(microsDelta);
 
@@ -827,7 +841,7 @@ void Module::process(float microsDelta) {
   this->ins.delta = ((float)offset) / 1000.0;
 
   hardware.digitalMux.process();
-  _transitionCurrentState();
+  _processTapTempo(microsDelta);
   _processEncoders(ratio);
 
   MS_process(&this->messd, &this->ins, &this->outs);
@@ -952,7 +966,7 @@ void Module::process(float microsDelta) {
   }
 
   hardware.digitalMux.process();
-  _transitionCurrentState();
+  _processTapTempo(microsDelta);
   _processEncoders(ratio);
 
   // Configure outputs
@@ -1001,7 +1015,7 @@ void Module::process(float microsDelta) {
   _display();
 
   hardware.digitalMux.process();
-  _transitionCurrentState();
+  _processTapTempo(microsDelta);
   _processEncoders(ratio);
 
   this->eomBuffer += microsDelta;

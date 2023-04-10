@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (4)
+#define NUM_TIMERS (5)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -134,6 +134,17 @@ private:
 
   ModuleState _currentState = ModuleState::Default;
 
+  // Temporary display states
+  enum class TemporaryDisplayState {
+    None = 0,
+    Tempo,
+    Done,
+    Calibrate
+  };
+
+  TemporaryDisplayState _temporaryDisplayState = TemporaryDisplayState::None;
+  Timer *_temporaryDisplayTimer = nullptr;
+
   // Different display types
   enum class DisplayState {
     Default = 0,
@@ -156,7 +167,7 @@ private:
   float scaledTempo = 120.0f;
   unsigned long lastTapMicros = 0;
   unsigned char totalTaps = 0;
-  uint32_t tempoDisplayTime = TEMPO_DISPLAY_TIME;
+  Timer _tempoDisplayTimer;
   uint8_t isRoundTripMode = 1;
 
   // Beats and subdivisions
@@ -265,22 +276,24 @@ private:
     &_beatsEqualsDivTimer,
     &_beatLatchFlashTimer,
     &_divLatchFlashTimer,
-    &_presetDisplayTimer
+    &_presetDisplayTimer,
+    &_tempoDisplayTimer
   };
 
   void _beatsEqualsDivCallback(float progress);
   void _beatLatchTimerCallback(float progress);
   void _divLatchTimerCallback(float progress);
   void _presetTimerCallback(float progress);
+  void _tempoDisplayTimerCallback(float progress);
 
   void _initializeFromSavedData();
-  void _transitionCurrentState();
   void _scaleValues();
   void _processEncoders(float ratio);
   void _processTapTempo(float msDelta);
   void _processModSwitch(float msDelta);
   void _processBeatDivSwitches(float msDelta);
   void _processCalibration(float microsdelta);
+  void _displayTemporaryWithTimer(Module::TemporaryDisplayState display, Timer *timer = nullptr, int maxTime = -1);
   void _display();
   void _displayLatchLEDs();
 
