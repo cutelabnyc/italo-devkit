@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (5)
+#define NUM_TIMERS (6)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -188,7 +188,7 @@ private:
   // Calibration display and state
   uint8_t doCalibrate = false;
   uint8_t calibrationPossible = true;
-  uint32_t calibrateDisplayTime = OTHER_DISPLAY_TIME;
+  Timer _calibrateDisplayTimer;
   Calibration calibratedState = {
     MOD_INPUT_MID, BEAT_INPUT_MID, DIV_INPUT_MID, TRUNC_INPUT_MID
   };
@@ -263,7 +263,8 @@ private:
     &_beatLatchFlashTimer,
     &_divLatchFlashTimer,
     &_presetDisplayTimer,
-    &_tempoDisplayTimer
+    &_tempoDisplayTimer,
+    &_calibrateDisplayTimer
   };
 
   void _clearTemporaryDisplayCallback(float progress);

@@ -314,7 +314,7 @@ void Module::_processBeatDivSwitches(float microsDelta) {
             activeState.beat_latch = initial_beat_latch;
             if (calibrationPossible) {
               doCalibrate = true;
-              calibrateDisplayTime = 0;
+              _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
             } else {
               _currentState = ModuleState::Preset;
               _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
@@ -356,7 +356,7 @@ void Module::_processBeatDivSwitches(float microsDelta) {
             activeState.div_latch = initial_div_latch;
             if (calibrationPossible) {
               doCalibrate = true;
-              calibrateDisplayTime = 0;
+              _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
             } else {
               _currentState = ModuleState::Preset;
               _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
@@ -413,11 +413,6 @@ void Module::_processCalibration(float microsdelta)
     _nonVolatileStorage.store(buff, &calibratedState);
 
     doCalibrate = false;
-  }
-
-  calibrateDisplayTime += microsdelta;
-  if (calibrateDisplayTime > OTHER_DISPLAY_TIME << 1) {
-    calibrateDisplayTime = OTHER_DISPLAY_TIME;
   }
 }
 
@@ -703,6 +698,7 @@ Module::Module()
 , _divLatchFlashTimer((std::bind(&Module::_divLatchTimerCallback, this, _1)))
 , _presetDisplayTimer((std::bind(&Module::_presetTimerCallback, this, _1)))
 , _tempoDisplayTimer((std::bind(&Module::_tempoDisplayTimerCallback, this, _1)))
+, _calibrateDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 {
   MS_init(&this->messd);
 };
