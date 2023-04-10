@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (3)
+#define NUM_TIMERS (4)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -256,20 +256,22 @@ private:
   uint32_t stateCommitTimer = STATE_COMMIT_INTERVAL;
   NonVolatileStorage<SerializableState> _nonVolatileStorage;
   uint8_t _nonVolatileStorageInitialized = false;
-  uint32_t presetDisplayTimer = PRESET_DISPLAY_TIME;
   uint8_t targetPresetIndex = 0;
   PresetAction presetAction = PresetAction::None;
+  Timer _presetDisplayTimer;
   uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
 
   Timer *_timers[NUM_TIMERS] = {
     &_beatsEqualsDivTimer,
     &_beatLatchFlashTimer,
-    &_divLatchFlashTimer
+    &_divLatchFlashTimer,
+    &_presetDisplayTimer
   };
 
   void _beatsEqualsDivCallback(float progress);
   void _beatLatchTimerCallback(float progress);
   void _divLatchTimerCallback(float progress);
+  void _presetTimerCallback(float progress);
 
   void _initializeFromSavedData();
   void _transitionCurrentState();

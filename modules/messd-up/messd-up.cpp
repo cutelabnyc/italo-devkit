@@ -88,6 +88,13 @@ void Module::_divLatchTimerCallback(float progress)
   _divLatchFlashState = (progress < 0.5f);
 }
 
+void Module::_presetTimerCallback(float progress)
+{
+  if (_currentState == ModuleState::Preset) {
+    _currentState = ModuleState::Default;
+  }
+}
+
 #pragma mark -
 
 void Module::_initializeFromSavedData()
@@ -173,7 +180,7 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::Preset) {
-      // TODO: Preset Display Timer
+      _presetDisplayTimer.restart();
       if (presetAction == PresetAction::None || presetAction == PresetAction::Store) {
         presetAction = PresetAction::Recall;
       } else {
@@ -210,7 +217,7 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::Preset) {
-      // TODO: Preset display timer
+      _presetDisplayTimer.restart();
       targetPresetIndex += inc;
       if (targetPresetIndex < 0) targetPresetIndex = 9 - ( abs(targetPresetIndex) % 9);
       if (targetPresetIndex >= 9) targetPresetIndex %= 9;
@@ -290,7 +297,7 @@ void Module::_processModSwitch(float microsDelta) {
 void Module::_processBeatDivSwitches(float microsDelta) {
   // div switch
   if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
-    if (presetDisplayTimer >= PRESET_DISPLAY_TIME) {
+    if (_currentState == ModuleState::Default) {
       if (div_switch_state_prev == HIGH) {
         initial_div_latch = activeState.div_latch;
         activeState.div_latch = !activeState.div_latch;
@@ -305,7 +312,8 @@ void Module::_processBeatDivSwitches(float microsDelta) {
               doCalibrate = true;
               calibrateDisplayTime = 0;
             } else {
-              presetDisplayTimer = 0;
+              _currentState = ModuleState::Preset;
+              _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
             }
           } else {
             inputClockDivDisplayTime = 0;
@@ -314,10 +322,11 @@ void Module::_processBeatDivSwitches(float microsDelta) {
           divHoldTime = 0;
         }
       }
-    } else {
+    } else if (_currentState == ModuleState::Preset) {
       if (div_switch_state_prev == HIGH) {
-        presetDisplayTimer = PRESET_DISPLAY_TIME;
         presetAction = PresetAction::None;
+        _currentState = ModuleState::Default;
+        _presetDisplayTimer.clear();
       }
     }
   } else {
@@ -331,7 +340,7 @@ void Module::_processBeatDivSwitches(float microsDelta) {
 
   // beat switch
   if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
-    if (presetDisplayTimer >= PRESET_DISPLAY_TIME) {
+    if (_currentState == ModuleState::Default) {
       if (beat_switch_state_prev == HIGH) {
         initial_beat_latch = activeState.beat_latch;
         activeState.beat_latch = !activeState.beat_latch;
@@ -345,7 +354,8 @@ void Module::_processBeatDivSwitches(float microsDelta) {
               doCalibrate = true;
               calibrateDisplayTime = 0;
             } else {
-              presetDisplayTimer = 0;
+              _currentState = ModuleState::Preset;
+              _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
             }
 
           } else if (canSwitchBeatInputModes) {
@@ -358,9 +368,8 @@ void Module::_processBeatDivSwitches(float microsDelta) {
           beatHoldTime = 0;
         }
       }
-    } else {
+    } else if (_currentState == ModuleState::Preset) {
       if (beat_switch_state_prev == HIGH) {
-        presetDisplayTimer = PRESET_DISPLAY_TIME;
 
         if (presetAction == PresetAction::Recall) {
           _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
@@ -371,6 +380,8 @@ void Module::_processBeatDivSwitches(float microsDelta) {
         }
 
         presetAction = PresetAction::None;
+        _currentState = ModuleState::Default;
+        _presetDisplayTimer.clear();
       }
     }
   } else {
@@ -437,7 +448,7 @@ void Module::_display() {
     this->displayState = DisplayState::Countdown;
   } else if (shouldDisplayBeatsEqualsDivs) {
     this->displayState = DisplayState::BeatsEqualDivs;
-  } else if (this->presetDisplayTimer < PRESET_DISPLAY_TIME) {
+  } else if (_currentState == ModuleState::Preset) {
     this->displayState = DisplayState::Preset;
   } else if (this->calibrateDisplayTime < OTHER_DISPLAY_TIME) {
     this->displayState = DisplayState::Calibration;
@@ -658,6 +669,7 @@ Module::Module()
 , _beatsEqualsDivTimer(std::bind(&Module::_beatsEqualsDivCallback, this, _1))
 , _beatLatchFlashTimer((std::bind(&Module::_beatLatchTimerCallback, this, _1)))
 , _divLatchFlashTimer((std::bind(&Module::_divLatchTimerCallback, this, _1)))
+, _presetDisplayTimer((std::bind(&Module::_presetTimerCallback, this, _1)))
 {
   MS_init(&this->messd);
 };
@@ -1010,11 +1022,6 @@ void Module::process(float microsDelta) {
   // this->beatsEqualsDivDisplayTime += microsDelta;
   // if (this->beatsEqualsDivDisplayTime > OTHER_DISPLAY_TIME + 1)
   //   this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME + 1;
-
-  this->presetDisplayTimer += microsDelta;
-  if (this->presetDisplayTimer > PRESET_DISPLAY_TIME * 2) {
-    this->presetDisplayTimer = PRESET_DISPLAY_TIME;
-  }
 
   this->doneDisplayTimer += microsDelta;
     if (this->doneDisplayTimer > OTHER_DISPLAY_TIME * 2) {

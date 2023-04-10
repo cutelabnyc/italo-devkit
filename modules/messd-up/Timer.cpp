@@ -45,3 +45,8 @@ void Timer::clear()
 {
   _active = false;
 }
+
+void Timer::restart()
+{
+  _currentTime = 0;
+}

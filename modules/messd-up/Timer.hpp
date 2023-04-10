@@ -4,6 +4,12 @@
 #include <Arduino.h>
 #include <functional>
 
+/**
+ * Call a callback function repeatedly, up to a certain time.
+ *
+ * @remarks
+ * The function will be called every time the `tick` function is called.
+*/
 class Timer {
 public:
   using TimerFunction = std::function<void(float)>;
@@ -12,6 +18,11 @@ public:
   bool tick(float usDelta);
   bool active();
   void clear();
+
+  /**
+   * Restart the internal timer. Will not reset the repeat counter
+  */
+  void restart();
 
 private:
   TimerFunction _callback;
