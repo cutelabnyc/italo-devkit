@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (7)
+#define NUM_TIMERS (8)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -257,7 +257,7 @@ private:
   uint8_t targetPresetIndex = 0;
   PresetAction presetAction = PresetAction::None;
   Timer _presetDisplayTimer;
-  uint32_t doneDisplayTimer = OTHER_DISPLAY_TIME;
+  Timer _doneDisplayTimer;
 
   Timer *_timers[NUM_TIMERS] = {
     &_beatsEqualsDivTimer,
@@ -266,7 +266,8 @@ private:
     &_presetDisplayTimer,
     &_tempoDisplayTimer,
     &_calibrateDisplayTimer,
-    &_countdownDisplayTimer
+    &_countdownDisplayTimer,
+    &_doneDisplayTimer
   };
 
   void _clearTemporaryDisplayCallback(float progress);

@@ -375,12 +375,21 @@ void Module::_processBeatDivSwitches(float microsDelta) {
     } else if (_currentState == ModuleState::Preset) {
       if (beat_switch_state_prev == HIGH) {
 
+        bool displayDone = false;
         if (presetAction == PresetAction::Recall) {
           _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
-          doneDisplayTimer = 0;
+          displayDone = true;
         } else if (presetAction == PresetAction::Store) {
           _nonVolatileStorage.storePreset(targetPresetIndex, &activeState);
-          doneDisplayTimer = 0;
+          displayDone = true;
+        }
+
+        if (displayDone) {
+          _displayTemporaryWithTimer(
+            TemporaryDisplayState::Done,
+            &_doneDisplayTimer,
+            OTHER_DISPLAY_TIME
+          );
         }
 
         presetAction = PresetAction::None;
@@ -700,6 +709,7 @@ Module::Module()
 , _tempoDisplayTimer((std::bind(&Module::_tempoDisplayTimerCallback, this, _1)))
 , _calibrateDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _countdownDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
+, _doneDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 {
   MS_init(&this->messd);
 };
@@ -1044,11 +1054,6 @@ void Module::process(float microsDelta) {
               ? 0.0
               : MOD_BUTTON_FLASH_TIME;
     }
-  }
-
-  this->doneDisplayTimer += microsDelta;
-    if (this->doneDisplayTimer > OTHER_DISPLAY_TIME * 2) {
-    this->doneDisplayTimer = OTHER_DISPLAY_TIME;
   }
 
   for (int i = 0; i < NUM_TIMERS; i++) {
