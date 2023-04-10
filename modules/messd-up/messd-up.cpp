@@ -99,15 +99,6 @@ void Module::_presetTimerCallback(float progress)
   }
 }
 
-void Module::_tempoDisplayTimerCallback(float progress)
-{
-  if (progress >= 1.0f) {
-    if (_currentState == ModuleState::Tempo) {
-      _currentState = ModuleState::Default;
-    }
-  }
-}
-
 #pragma mark -
 
 void Module::_initializeFromSavedData()
@@ -279,6 +270,8 @@ void Module::_processTapTempo(float microsDelta) {
   if (nextClockSwitch == LOW) {
     _displayTemporaryWithTimer(TemporaryDisplayState::Tempo, &_tempoDisplayTimer, TEMPO_DISPLAY_TIME);
     _currentState = ModuleState::Tempo;
+  } else if (_currentState == ModuleState::Tempo) {
+    _currentState = ModuleState::Default;
   }
 
   this->clockSwitch = nextClockSwitch;
@@ -706,7 +699,7 @@ Module::Module()
 , _beatLatchFlashTimer((std::bind(&Module::_beatLatchTimerCallback, this, _1)))
 , _divLatchFlashTimer((std::bind(&Module::_divLatchTimerCallback, this, _1)))
 , _presetDisplayTimer((std::bind(&Module::_presetTimerCallback, this, _1)))
-, _tempoDisplayTimer((std::bind(&Module::_tempoDisplayTimerCallback, this, _1)))
+, _tempoDisplayTimer((std::bind(&Module::_clearTemporaryDisplayCallback, this, _1)))
 , _calibrateDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _countdownDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _doneDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))

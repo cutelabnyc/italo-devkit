@@ -272,7 +272,6 @@ private:
   void _beatLatchTimerCallback(float progress);
   void _divLatchTimerCallback(float progress);
   void _presetTimerCallback(float progress);
-  void _tempoDisplayTimerCallback(float progress);
 
   void _initializeFromSavedData();
   void _scaleValues();
