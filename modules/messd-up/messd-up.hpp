@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (8)
+#define NUM_TIMERS (10)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -38,8 +38,7 @@
 #define MOD_BUTTON_RESET_TIME_MICROS (2000000)
 #define TEMPO_DISPLAY_TIME (2000000)
 #define OTHER_DISPLAY_TIME (2000000)
-#define DIV_BUTTON_HOLD_TIME (2000000)
-#define BEAT_BUTTON_HOLD_TIME (2000000)
+#define BEATDIV_BUTTON_HOLD_TIME (2000000)
 #define COUNTDOWN_DISPLAY_TIME (500000)
 #define LATCH_PULSE_TIME (500000)
 #define STATE_COMPARE_INTERVAL (100000)
@@ -256,6 +255,8 @@ private:
   PresetAction presetAction = PresetAction::None;
   Timer _presetDisplayTimer;
   Timer _doneDisplayTimer;
+  Timer _beatButtonHoldTimer;
+  Timer _divButtonHoldTimer;
 
   Timer *_timers[NUM_TIMERS] = {
     &_beatsEqualsDivTimer,
@@ -265,13 +266,17 @@ private:
     &_tempoDisplayTimer,
     &_calibrateDisplayTimer,
     &_countdownDisplayTimer,
-    &_doneDisplayTimer
+    &_doneDisplayTimer,
+    &_beatButtonHoldTimer,
+    &_divButtonHoldTimer
   };
 
   void _clearTemporaryDisplayCallback(float progress);
   void _beatLatchTimerCallback(float progress);
   void _divLatchTimerCallback(float progress);
   void _presetTimerCallback(float progress);
+  void _beatButtonTimerCallback(float progress);
+  void _divButtonTimerCallback(float progress);
 
   void _initializeFromSavedData();
   void _scaleValues();

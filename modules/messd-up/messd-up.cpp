@@ -99,6 +99,32 @@ void Module::_presetTimerCallback(float progress)
   }
 }
 
+void Module::_divButtonTimerCallback(float progress)
+{
+  if (progress > 1.0f) {
+    // TODO: enter the menu
+  }
+}
+
+void Module::_beatButtonTimerCallback(float progress)
+{
+  if (progress > 1.0f) {
+    // Enter calibration if both buttons have been held down since the start
+    if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
+      if (calibrationPossible) {
+        doCalibrate = true;
+        _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
+        activeState.beat_latch = initial_beat_latch;
+        activeState.div_latch = initial_div_latch;
+      }
+    } else {
+      activeState.beat_latch = initial_beat_latch;
+      _currentState = ModuleState::Preset;
+      _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
+    }
+  }
+}
+
 #pragma mark -
 
 void Module::_initializeFromSavedData()
@@ -300,7 +326,7 @@ void Module::_processBeatDivSwitches(float microsDelta) {
         activeState.div_latch = !activeState.div_latch;
       } else {
         divHoldTime += microsDelta;
-        if (divHoldTime >= DIV_BUTTON_HOLD_TIME) {
+        if (divHoldTime >= BEATDIV_BUTTON_HOLD_TIME) {
           activeState.div_latch = initial_div_latch;
 
           if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
@@ -341,30 +367,16 @@ void Module::_processBeatDivSwitches(float microsDelta) {
       if (beat_switch_state_prev == HIGH) {
         initial_beat_latch = activeState.beat_latch;
         activeState.beat_latch = !activeState.beat_latch;
-      } else {
-        beatHoldTime += microsDelta;
-        if (beatHoldTime > BEAT_BUTTON_HOLD_TIME) {
-          if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
-            activeState.beat_latch = initial_beat_latch;
-            activeState.div_latch = initial_div_latch;
-            if (calibrationPossible) {
-              doCalibrate = true;
-              _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
-            } else {
-              _currentState = ModuleState::Preset;
-              _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
-            }
-
-          } else if (canSwitchBeatInputModes) {
-            activeState.beat_latch = initial_beat_latch;
-            activeState.beatInputResetMode = !activeState.beatInputResetMode;
-            canSwitchBeatInputModes = false;
-            beatModeDisplayTime = 0.0f;
-          }
-
-          beatHoldTime = 0;
-        }
+        _beatButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
       }
+
+          // TODO
+          // if (canSwitchBeatInputModes) {
+          //   activeState.beat_latch = initial_beat_latch;
+          //   activeState.beatInputResetMode = !activeState.beatInputResetMode;
+          //   canSwitchBeatInputModes = false;
+          //   beatModeDisplayTime = 0.0f;
+          // }
     } else if (_currentState == ModuleState::Preset) {
       if (beat_switch_state_prev == HIGH) {
 
@@ -391,13 +403,10 @@ void Module::_processBeatDivSwitches(float microsDelta) {
       }
     }
   } else {
-    beatModeDisplayTime += microsDelta;
-    if (beatModeDisplayTime > OTHER_DISPLAY_TIME + 1)
-      beatModeDisplayTime = OTHER_DISPLAY_TIME + 1;
-    beatHoldTime = 0.0f;
-    canSwitchBeatInputModes = true;
+    _beatButtonHoldTimer.clear();
     calibrationPossible = false;
   }
+
   beat_switch_state_prev =
       hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH);
 }
@@ -703,6 +712,8 @@ Module::Module()
 , _calibrateDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _countdownDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _doneDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
+, _beatButtonHoldTimer(std::bind(&Module::_beatButtonTimerCallback, this, _1))
+, _divButtonHoldTimer(std::bind(&Module::_divButtonTimerCallback, this, _1))
 {
   MS_init(&this->messd);
 };
