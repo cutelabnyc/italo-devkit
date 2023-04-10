@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (6)
+#define NUM_TIMERS (7)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -184,6 +184,7 @@ private:
   uint8_t lastDownbeat = false;
   uint32_t countdownDisplayTime = COUNTDOWN_DISPLAY_TIME;
   uint16_t countdownSampleAndHold = 0;
+  Timer _countdownDisplayTimer;
 
   // Calibration display and state
   uint8_t doCalibrate = false;
@@ -264,7 +265,8 @@ private:
     &_divLatchFlashTimer,
     &_presetDisplayTimer,
     &_tempoDisplayTimer,
-    &_calibrateDisplayTimer
+    &_calibrateDisplayTimer,
+    &_countdownDisplayTimer
   };
 
   void _clearTemporaryDisplayCallback(float progress);

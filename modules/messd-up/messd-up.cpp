@@ -464,7 +464,7 @@ void Module::_display() {
       displayState = DisplayState::BeatsEqualDivs;
     } else if (_temporaryDisplayState == TemporaryDisplayState::Calibrate) {
       displayState = DisplayState::Calibration;
-    } else if (_temporaryDisplayState == TemporaryDisplayState::Countdown) {
+    } else if (_temporaryDisplayState == TemporaryDisplayState::Countdown && outs.modulationPending) {
       displayState = DisplayState::Countdown;
     } else if (_temporaryDisplayState == TemporaryDisplayState::Done) {
       displayState = DisplayState::Done;
@@ -699,6 +699,7 @@ Module::Module()
 , _presetDisplayTimer((std::bind(&Module::_presetTimerCallback, this, _1)))
 , _tempoDisplayTimer((std::bind(&Module::_tempoDisplayTimerCallback, this, _1)))
 , _calibrateDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
+, _countdownDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 {
   MS_init(&this->messd);
 };
@@ -895,13 +896,14 @@ void Module::process(float microsDelta) {
 
   if (!this->lastDownbeat && this->outs.downbeat) {
     if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
-      this->countdownDisplayTime = 0;
+      _displayTemporaryWithTimer(
+        TemporaryDisplayState::Countdown,
+        &_countdownDisplayTimer,
+        COUNTDOWN_DISPLAY_TIME
+      );
       this->countdownSampleAndHold = this->outs.countdown;
     }
   }
-  this->countdownDisplayTime += microsDelta;
-  this->countdownDisplayTime =
-      min(this->countdownDisplayTime, COUNTDOWN_DISPLAY_TIME);
   this->lastDownbeat = this->outs.downbeat;
 
   if (this->outs.eom) {
