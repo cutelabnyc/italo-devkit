@@ -139,27 +139,13 @@ private:
     None = 0,
     Tempo,
     Done,
-    Calibrate
+    Calibrate,
+    Countdown,
+    BeatsEqualDivs,
   };
 
   TemporaryDisplayState _temporaryDisplayState = TemporaryDisplayState::None;
   Timer *_temporaryDisplayTimer = nullptr;
-
-  // Different display types
-  enum class DisplayState {
-    Default = 0,
-    Tempo,
-    Pop,
-    InputClockDivide,
-    BeatMode,
-    Countdown,
-    BeatsEqualDivs,
-    Preset,
-    Calibration,
-    Done
-  };
-
-  DisplayState displayState = DisplayState::Default;
 
   // Storage for the clock switch
   uint8_t clockSwitch = LOW;
@@ -280,7 +266,7 @@ private:
     &_tempoDisplayTimer
   };
 
-  void _beatsEqualsDivCallback(float progress);
+  void _clearTemporaryDisplayCallback(float progress);
   void _beatLatchTimerCallback(float progress);
   void _divLatchTimerCallback(float progress);
   void _presetTimerCallback(float progress);

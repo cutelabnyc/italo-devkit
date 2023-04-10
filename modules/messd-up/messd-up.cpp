@@ -73,9 +73,11 @@ ISR(PCINT0_vect) {
 }
 
 #pragma mark Timer Callbacks
-void Module::_beatsEqualsDivCallback(float progress)
+void Module::_clearTemporaryDisplayCallback(float progress)
 {
-  shouldDisplayBeatsEqualsDivs = progress < 1.0f;
+  if (progress >= 1.0f) {
+    _temporaryDisplayState = Module::TemporaryDisplayState::None;
+  }
 }
 
 void Module::_beatLatchTimerCallback(float progress)
@@ -419,7 +421,22 @@ void Module::_processCalibration(float microsdelta)
   }
 }
 
+// Different display types
+enum class DisplayState {
+  Default = 0,
+  Tempo,
+  Pop,
+  InputClockDivide,
+  BeatMode,
+  Countdown,
+  BeatsEqualDivs,
+  Preset,
+  Calibration,
+  Done
+};
+
 void Module::_display() {
+  DisplayState displayState = DisplayState::Default;
 
   digitCounter++;
   if (digitCounter == 4) {
@@ -437,135 +454,136 @@ void Module::_display() {
   }
 
   if (this->outs.resetPending) {
-    this->displayState = DisplayState::Pop;
-  } else if (this->clockSwitch == LOW || _currentState == ModuleState::Tempo) {
-    this->displayState = DisplayState::Tempo;
-  } else if (this->inputClockDivDisplayTime < OTHER_DISPLAY_TIME) {
-    this->displayState = DisplayState::InputClockDivide;
-    colon = true;
-  } else if (this->beatModeDisplayTime < OTHER_DISPLAY_TIME) {
-    this->displayState = DisplayState::BeatMode;
-  } else if (this->countdownDisplayTime < COUNTDOWN_DISPLAY_TIME && this->messd.modulationPending) {
-    this->displayState = DisplayState::Countdown;
-  } else if (shouldDisplayBeatsEqualsDivs) {
-    this->displayState = DisplayState::BeatsEqualDivs;
+    displayState = DisplayState::Pop;
+  } else if (_currentState == ModuleState::Tempo) {
+    displayState = DisplayState::Tempo;
   } else if (_currentState == ModuleState::Preset) {
-    this->displayState = DisplayState::Preset;
-  } else if (this->calibrateDisplayTime < OTHER_DISPLAY_TIME) {
-    this->displayState = DisplayState::Calibration;
-  } else if (this->doneDisplayTimer < OTHER_DISPLAY_TIME) {
-    this->displayState = DisplayState::Done;
-  } else {
-    this->displayState = DisplayState::Default;
-    colon = true;
+    displayState = DisplayState::Preset;
+  } else if (_currentState == ModuleState::ParamMenu) {
+    // TODO
+  } else if (_currentState == ModuleState::Default) {
+    if (_temporaryDisplayState == TemporaryDisplayState::None) {
+      displayState = DisplayState::Default;
+      colon = true;
+    } else if (_temporaryDisplayState == TemporaryDisplayState::BeatsEqualDivs) {
+      displayState = DisplayState::BeatsEqualDivs;
+    } else if (_temporaryDisplayState == TemporaryDisplayState::Calibrate) {
+      displayState = DisplayState::Calibration;
+    } else if (_temporaryDisplayState == TemporaryDisplayState::Countdown) {
+      displayState = DisplayState::Countdown;
+    } else if (_temporaryDisplayState == TemporaryDisplayState::Done) {
+      displayState = DisplayState::Done;
+    } else if (_temporaryDisplayState == TemporaryDisplayState::Tempo) {
+      displayState = DisplayState::Tempo;
+    }
   }
 
   switch (digitCounter) {
   case 0:
-    if (this->displayState == DisplayState::Tempo) {
+    if (displayState == DisplayState::Tempo) {
       value = (displayableTempo) / 1000;
-    } else if (this->displayState == DisplayState::Default) {
+    } else if (displayState == DisplayState::Default) {
       value = activeDiv / 10;
-    } else if (this->displayState == DisplayState::Pop) {
+    } else if (displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
-    } else if (this->displayState == DisplayState::InputClockDivide) {
+    } else if (displayState == DisplayState::InputClockDivide) {
       value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::BeatMode) {
+    } else if (displayState == DisplayState::BeatMode) {
       value =
           (int)(activeState.beatInputResetMode ? SpecialDigits::Nothing : SpecialDigits::B);
-    } else if (this->displayState == DisplayState::Countdown) {
+    } else if (displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold / 1000;
       if (value == 0)
         value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+    } else if (displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::Preset) {
+    } else if (displayState == DisplayState::Preset) {
       value = (int)SpecialDigits::P;
-    } else if (this->displayState == DisplayState::Calibration) {
+    } else if (displayState == DisplayState::Calibration) {
       value = (int)SpecialDigits::C;
-    } else if (this->displayState == DisplayState::Done) {
+    } else if (displayState == DisplayState::Done) {
       value = (int)SpecialDigits::D;
     }
     break;
   case 1:
-    if (this->displayState == DisplayState::Tempo) {
+    if (displayState == DisplayState::Tempo) {
       value = ((displayableTempo) / 100) % 10;
-    } else if (this->displayState == DisplayState::Default) {
+    } else if (displayState == DisplayState::Default) {
       value = activeDiv % 10;
       decimal = this->outs.subdivision;
-    } else if (this->displayState == DisplayState::Pop) {
+    } else if (displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
-    } else if (this->displayState == DisplayState::InputClockDivide) {
+    } else if (displayState == DisplayState::InputClockDivide) {
       value = (int)1;
-    } else if (this->displayState == DisplayState::BeatMode) {
+    } else if (displayState == DisplayState::BeatMode) {
       value = (int)(activeState.beatInputResetMode ? SpecialDigits::R : SpecialDigits::E);
-    } else if (this->displayState == DisplayState::Countdown) {
+    } else if (displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold / 100;
       if (value == 0)
         value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+    } else if (displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::D;
-    } else if (this->displayState == DisplayState::Preset) {
+    } else if (displayState == DisplayState::Preset) {
       value = targetPresetIndex + 1;
-    } else if (this->displayState == DisplayState::Calibration) {
+    } else if (displayState == DisplayState::Calibration) {
       value = (int)SpecialDigits::A;
-    } else if (this->displayState == DisplayState::Done) {
+    } else if (displayState == DisplayState::Done) {
       value = 0;
     }
     break;
   case 2:
-    if (this->displayState == DisplayState::Tempo) {
+    if (displayState == DisplayState::Tempo) {
       value = ((displayableTempo) / 10) % 10;
       decimal = tempoDecimal;
-    } else if (this->displayState == DisplayState::Default) {
+    } else if (displayState == DisplayState::Default) {
       value = activeBeats / 10;
-    } else if (this->displayState == DisplayState::Pop) {
+    } else if (displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
-    } else if (this->displayState == DisplayState::InputClockDivide) {
+    } else if (displayState == DisplayState::InputClockDivide) {
       value = activeState.inputClockDivider / 10;
       if (value == 0)
         value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::BeatMode) {
+    } else if (displayState == DisplayState::BeatMode) {
       value = (activeState.beatInputResetMode ? 5 : (int)SpecialDigits::A);
-    } else if (this->displayState == DisplayState::Countdown) {
+    } else if (displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold / 10;
       if (value == 0)
         value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+    } else if (displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::Equals;
-    } else if (this->displayState == DisplayState::Preset) {
+    } else if (displayState == DisplayState::Preset) {
       value = (int)SpecialDigits::Nothing;
-    } else if (this->displayState == DisplayState::Calibration) {
+    } else if (displayState == DisplayState::Calibration) {
       value = (int)SpecialDigits::L;
-    } else if (this->displayState == DisplayState::Done) {
+    } else if (displayState == DisplayState::Done) {
       value = (int)SpecialDigits::N;
     }
     break;
   case 3:
-    if (this->displayState == DisplayState::Tempo) {
+    if (displayState == DisplayState::Tempo) {
       value = displayableTempo % 10;
-    } else if (this->displayState == DisplayState::Default) {
+    } else if (displayState == DisplayState::Default) {
       value = activeBeats % 10;
       decimal = this->outs.beat;
-    } else if (this->displayState == DisplayState::Pop) {
+    } else if (displayState == DisplayState::Pop) {
       value = (int)SpecialDigits::Dash;
-    } else if (this->displayState == DisplayState::InputClockDivide) {
+    } else if (displayState == DisplayState::InputClockDivide) {
       value = activeState.inputClockDivider % 10;
-    } else if (this->displayState == DisplayState::BeatMode) {
+    } else if (displayState == DisplayState::BeatMode) {
       value = (int)SpecialDigits::T;
-    } else if (this->displayState == DisplayState::Countdown) {
+    } else if (displayState == DisplayState::Countdown) {
       value = countdownSampleAndHold % 10;
-    } else if (this->displayState == DisplayState::BeatsEqualDivs) {
+    } else if (displayState == DisplayState::BeatsEqualDivs) {
       value = (int)SpecialDigits::B;
-    } else if (this->displayState == DisplayState::Preset) {
+    } else if (displayState == DisplayState::Preset) {
       value = presetAction == PresetAction::None ?
         (int)SpecialDigits::Nothing :
         presetAction == PresetAction::Recall ?
         (int)SpecialDigits::R :
         5;
-    } else if (this->displayState == DisplayState::Calibration) {
+    } else if (displayState == DisplayState::Calibration) {
       value = 1;
-    } else if (this->displayState == DisplayState::Done) {
+    } else if (displayState == DisplayState::Done) {
       value = (int)SpecialDigits::E;
     }
     break;
@@ -680,7 +698,7 @@ Module::Module()
 : _nonVolatileStorage()
 , _divCVQuantizer(DIV_INPUT_MIN, DIV_INPUT_MID, DIV_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
 , _beatCVQuantizer(BEAT_INPUT_MIN, BEAT_INPUT_MID, BEAT_INPUT_MAX, -(beatsDivMax - beatsDivMin / 2), (beatsDivMax - beatsDivMin / 2), 0.1f)
-, _beatsEqualsDivTimer(std::bind(&Module::_beatsEqualsDivCallback, this, _1))
+, _beatsEqualsDivTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _beatLatchFlashTimer((std::bind(&Module::_beatLatchTimerCallback, this, _1)))
 , _divLatchFlashTimer((std::bind(&Module::_divLatchTimerCallback, this, _1)))
 , _presetDisplayTimer((std::bind(&Module::_presetTimerCallback, this, _1)))
@@ -922,7 +940,11 @@ void Module::process(float microsDelta) {
     this->modButtonFlashTimer = 0.0;
     this->modButtonFlashCount = 0.0;
     this->modulationButtonIgnored = true;
-    _beatsEqualsDivTimer.start(OTHER_DISPLAY_TIME);
+    _displayTemporaryWithTimer(
+      TemporaryDisplayState::BeatsEqualDivs,
+      &_beatsEqualsDivTimer,
+      OTHER_DISPLAY_TIME
+    );
   }
   if (this->modSwitch == HIGH) {
     this->modulationButtonIgnored = false;
@@ -986,13 +1008,6 @@ void Module::process(float microsDelta) {
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
       this->outs.beat ? LOW : HIGH;
 
-  // about 100 msec
-
-  // for (int i = 0; i < 8; i++) {
-  //   if (i != 0) Serial.print(", ");
-  //   Serial.print(output_sr_val[i]);
-  // }
-  // Serial.print("\n");
   hardware.moduleOuts.process(this->output_sr_val, 8, true);
 
   // Configure LEDs
@@ -1032,10 +1047,6 @@ void Module::process(float microsDelta) {
               : MOD_BUTTON_FLASH_TIME;
     }
   }
-
-  // this->beatsEqualsDivDisplayTime += microsDelta;
-  // if (this->beatsEqualsDivDisplayTime > OTHER_DISPLAY_TIME + 1)
-  //   this->beatsEqualsDivDisplayTime = OTHER_DISPLAY_TIME + 1;
 
   this->doneDisplayTimer += microsDelta;
     if (this->doneDisplayTimer > OTHER_DISPLAY_TIME * 2) {
