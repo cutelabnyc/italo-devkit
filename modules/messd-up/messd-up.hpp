@@ -26,7 +26,7 @@
 
 #include "pins.hpp"
 
-#define NUM_TIMERS (10)
+#define NUM_TIMERS (11)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
 #define EOM_LED_BUFFER_MICROS (250000)
@@ -58,6 +58,9 @@ private:
   static const int tapTempoMax = 280;
   static const int inputClockDivideMin = 1;
   static const int inputClockDivideMax = 9;
+  static constexpr float dutyCycleMin = 0.1f;
+  static constexpr float dutyCycleMax = 0.9f;
+  static constexpr float dutyCycleInc = 0.1f;
   class MessdUpHardware : public Hardware<MessdUpHardware> {
   private:
     uint8_t muxPins[3] = {MUX_S0, MUX_S1, MUX_S2};
@@ -93,6 +96,8 @@ private:
     uint8_t beat_latch;
     uint8_t beatInputResetMode;
     uint8_t inputClockDivider;
+    float dutyCycle;
+    int modulationStyle;
   } SerializableState;
 
   typedef struct Calibration {
@@ -137,6 +142,13 @@ private:
 
   ModuleState _currentState = ModuleState::Default;
   int _menuIndex = 0;
+
+  // Modulation Styles
+  enum class ModulationStyle {
+    Sync = 0,
+    Stay,
+    Flip
+  };
 
   // Temporary display states
   enum class TemporaryDisplayState {
@@ -246,7 +258,9 @@ private:
     1,        // div_latch
     1,        // beat_latch
     0,        // beatInputResetMode
-    1         // inputClockDivider
+    1,        // inputClockDivider
+    0.5,      // duty cycle
+    0         // modulation style (sync)
   };
   enum class PresetAction {
     None = 0,
@@ -262,6 +276,7 @@ private:
   Timer _doneDisplayTimer;
   Timer _beatButtonHoldTimer;
   Timer _divButtonHoldTimer;
+  Timer _paramMenuDisplayTimer;
 
   Timer *_timers[NUM_TIMERS] = {
     &_beatsEqualsDivTimer,
@@ -273,12 +288,14 @@ private:
     &_countdownDisplayTimer,
     &_doneDisplayTimer,
     &_beatButtonHoldTimer,
-    &_divButtonHoldTimer
+    &_divButtonHoldTimer,
+    &_paramMenuDisplayTimer
   };
 
   void _clearTemporaryDisplayCallback(float progress);
   void _beatLatchTimerCallback(float progress);
   void _divLatchTimerCallback(float progress);
+  void _paramMenuTimerCallback(float progress);
   void _presetTimerCallback(float progress);
   void _beatButtonTimerCallback(float progress);
   void _divButtonTimerCallback(float progress);
@@ -288,6 +305,8 @@ private:
   void _processEncoders(float ratio);
   void _processTapTempo(float msDelta);
   void _processModSwitch(float msDelta);
+  void _divSwitchPressed();
+  void _beatSwitchPressed();
   void _processBeatDivSwitches(float msDelta);
   void _processCalibration(float microsdelta);
   void _displayTemporaryWithTimer(Module::TemporaryDisplayState display, Timer *timer = nullptr, int maxTime = -1);

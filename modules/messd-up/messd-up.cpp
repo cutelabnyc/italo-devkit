@@ -99,16 +99,43 @@ void Module::_presetTimerCallback(float progress)
   }
 }
 
+void Module::_paramMenuTimerCallback(float progress)
+{
+  if (progress >= 1.0f) {
+    if (
+      _currentState == ModuleState::ParamMenu
+      || _currentState == ModuleState::BeatInput
+      || _currentState == ModuleState::ClockCount
+      || _currentState == ModuleState::Duty
+      || _currentState == ModuleState::ModStyle
+    ) {
+      _currentState = ModuleState::Default;
+    }
+  }
+}
+
 void Module::_divButtonTimerCallback(float progress)
 {
-  if (progress > 1.0f) {
-    // TODO: enter the menu
+  if (progress >= 1.0f) {
+    // Enter calibration if both buttons have been held down since the start
+    if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
+      if (calibrationPossible) {
+        doCalibrate = true;
+        _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
+        activeState.beat_latch = initial_beat_latch;
+        activeState.div_latch = initial_div_latch;
+      }
+    } else {
+      activeState.div_latch = initial_div_latch;
+      _currentState = ModuleState::ParamMenu;
+      _paramMenuDisplayTimer.start(PRESET_DISPLAY_TIME);
+    }
   }
 }
 
 void Module::_beatButtonTimerCallback(float progress)
 {
-  if (progress > 1.0f) {
+  if (progress >= 1.0f) {
     // Enter calibration if both buttons have been held down since the start
     if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
       if (calibrationPossible) {
@@ -206,7 +233,42 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::ParamMenu) {
-      // TODO
+      _menuIndex += inc;
+      if (_menuIndex >= 4) _menuIndex = 0;
+      if (_menuIndex < 0) _menuIndex = 3;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::BeatInput) {
+      activeState.beatInputResetMode = !activeState.beatInputResetMode;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::ClockCount) {
+      activeState.inputClockDivider += inc;
+      if (activeState.inputClockDivider < Module::inputClockDivideMin) {
+        activeState.inputClockDivider = Module::inputClockDivideMin;
+      } else if (activeState.inputClockDivider > Module::inputClockDivideMax) {
+        activeState.inputClockDivider = Module::inputClockDivideMax;
+      }
+      atomicInputClockDivider = activeState.inputClockDivider;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::Duty) {
+      activeState.dutyCycle += (Module::dutyCycleInc * inc);
+      activeState.dutyCycle = fminf(Module::dutyCycleMax, fmaxf(Module::dutyCycleMin, activeState.dutyCycle));
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::ModStyle) {
+      activeState.modulationStyle += inc;
+      if (activeState.modulationStyle < 0) {
+        activeState.modulationStyle = 2;
+      } else if (activeState.modulationStyle > 2) {
+        activeState.modulationStyle = 0;
+      }
+      _paramMenuDisplayTimer.restart();
     }
   }
 
@@ -241,17 +303,8 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::ParamMenu) {
-      // TODO: Handle the param menu stuff here
-
-      activeState.inputClockDivider += inc;
-      this->inputClockDivDisplayTime = 0.0f;
-      if (activeState.inputClockDivider < Module::inputClockDivideMin) {
-        activeState.inputClockDivider = Module::inputClockDivideMin;
-      } else if (activeState.inputClockDivider > Module::inputClockDivideMax) {
-        activeState.inputClockDivider = Module::inputClockDivideMax;
-      }
-
-      atomicInputClockDivider = activeState.inputClockDivider;
+      // Div encoder is a no-op here
+      _presetDisplayTimer.restart();
     }
   }
 }
@@ -317,90 +370,94 @@ void Module::_processModSwitch(float microsDelta) {
   this->modSwitch = hardware.MODSWITCH.val;
 }
 
+void Module::_divSwitchPressed() {
+  if (_currentState == ModuleState::Default) {
+    initial_div_latch = activeState.div_latch;
+    activeState.div_latch = !activeState.div_latch;
+    _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
+  } else if (_currentState == ModuleState::Preset) {
+    presetAction = PresetAction::None;
+    _currentState = ModuleState::Default;
+    _presetDisplayTimer.clear();
+  } else if (_currentState == ModuleState::ParamMenu) {
+    _currentState = ModuleState::Default;
+  } else if (
+    _currentState == ModuleState::BeatInput
+    || _currentState == ModuleState::ClockCount
+    || _currentState == ModuleState::Duty
+    || _currentState == ModuleState::ModStyle
+  ) {
+    _currentState = ModuleState::ParamMenu;
+    _paramMenuDisplayTimer.restart();
+  }
+}
+
+void Module::_beatSwitchPressed() {
+  if (_currentState == ModuleState::Default) {
+    initial_beat_latch = activeState.beat_latch;
+    activeState.beat_latch = !activeState.beat_latch;
+    _beatButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
+  } else if (_currentState == ModuleState::Preset) {
+    bool displayDone = false;
+    if (presetAction == PresetAction::Recall) {
+      _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
+      displayDone = true;
+    } else if (presetAction == PresetAction::Store) {
+      _nonVolatileStorage.storePreset(targetPresetIndex, &activeState);
+      displayDone = true;
+    }
+
+    if (displayDone) {
+      _displayTemporaryWithTimer(
+        TemporaryDisplayState::Done,
+        &_doneDisplayTimer,
+        OTHER_DISPLAY_TIME
+      );
+    }
+
+    presetAction = PresetAction::None;
+    _currentState = ModuleState::Default;
+    _presetDisplayTimer.clear();
+  } else if (_currentState == ModuleState::ParamMenu) {
+    if (_menuIndex == 0) {
+      _currentState = ModuleState::ClockCount;
+    } else if (_menuIndex == 1) {
+      _currentState = ModuleState::BeatInput;
+    } else if (_menuIndex == 2) {
+      _currentState = ModuleState::Duty;
+    } else if (_menuIndex == 3) {
+      _currentState = ModuleState::ModStyle;
+    }
+    _paramMenuDisplayTimer.restart();
+  } else if (
+    _currentState == ModuleState::ClockCount
+    || _currentState == ModuleState::BeatInput
+    || _currentState == ModuleState::Duty
+    || _currentState == ModuleState::ModStyle
+  ) {
+    _currentState = ModuleState::Default;
+    _paramMenuDisplayTimer.restart();
+  }
+}
+
 void Module::_processBeatDivSwitches(float microsDelta) {
+
   // div switch
   if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
-    if (_currentState == ModuleState::Default) {
-      if (div_switch_state_prev == HIGH) {
-        initial_div_latch = activeState.div_latch;
-        activeState.div_latch = !activeState.div_latch;
-      } else {
-        divHoldTime += microsDelta;
-        if (divHoldTime >= BEATDIV_BUTTON_HOLD_TIME) {
-          activeState.div_latch = initial_div_latch;
-
-          if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
-            activeState.beat_latch = initial_beat_latch;
-            if (calibrationPossible) {
-              doCalibrate = true;
-              _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
-            } else {
-              _currentState = ModuleState::Preset;
-              _presetDisplayTimer.start(PRESET_DISPLAY_TIME);
-            }
-          } else {
-            inputClockDivDisplayTime = 0;
-          }
-
-          divHoldTime = 0;
-        }
-      }
-    } else if (_currentState == ModuleState::Preset) {
-      if (div_switch_state_prev == HIGH) {
-        presetAction = PresetAction::None;
-        _currentState = ModuleState::Default;
-        _presetDisplayTimer.clear();
-      }
+    if (div_switch_state_prev == HIGH) {
+      _divSwitchPressed();
     }
   } else {
-    inputClockDivDisplayTime += microsDelta;
-    if (inputClockDivDisplayTime > OTHER_DISPLAY_TIME + 1)
-      inputClockDivDisplayTime = OTHER_DISPLAY_TIME + 1;
-    divHoldTime = 0.0f;
+    _divButtonHoldTimer.clear();
     calibrationPossible = false;
   }
-  div_switch_state_prev = hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH);
+  div_switch_state_prev =
+    hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH);
 
   // beat switch
   if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
-    if (_currentState == ModuleState::Default) {
-      if (beat_switch_state_prev == HIGH) {
-        initial_beat_latch = activeState.beat_latch;
-        activeState.beat_latch = !activeState.beat_latch;
-        _beatButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
-      }
-
-          // TODO
-          // if (canSwitchBeatInputModes) {
-          //   activeState.beat_latch = initial_beat_latch;
-          //   activeState.beatInputResetMode = !activeState.beatInputResetMode;
-          //   canSwitchBeatInputModes = false;
-          //   beatModeDisplayTime = 0.0f;
-          // }
-    } else if (_currentState == ModuleState::Preset) {
-      if (beat_switch_state_prev == HIGH) {
-
-        bool displayDone = false;
-        if (presetAction == PresetAction::Recall) {
-          _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
-          displayDone = true;
-        } else if (presetAction == PresetAction::Store) {
-          _nonVolatileStorage.storePreset(targetPresetIndex, &activeState);
-          displayDone = true;
-        }
-
-        if (displayDone) {
-          _displayTemporaryWithTimer(
-            TemporaryDisplayState::Done,
-            &_doneDisplayTimer,
-            OTHER_DISPLAY_TIME
-          );
-        }
-
-        presetAction = PresetAction::None;
-        _currentState = ModuleState::Default;
-        _presetDisplayTimer.clear();
-      }
+    if (beat_switch_state_prev == HIGH) {
+      _beatSwitchPressed();
     }
   } else {
     _beatButtonHoldTimer.clear();
@@ -439,7 +496,64 @@ enum class DisplayState {
   Preset,
   Calibration,
   Done,
-  ParamMenu
+  ParamMenu,
+  Duty,
+  ModStyle
+};
+
+static int paramMenuNames[4][4] = {
+  // Clock Count (CLCT)
+  {
+    (int) SpecialDigits::C,
+    (int) SpecialDigits::L,
+    (int) SpecialDigits::C,
+    (int) SpecialDigits::T
+  },
+  // Beat Input Mode (BEAT)
+  {
+    (int) SpecialDigits::B,
+    (int) SpecialDigits::E,
+    (int) SpecialDigits::A,
+    (int) SpecialDigits::T
+  },
+  // Duty Cycle (DUTY)
+  {
+    (int) SpecialDigits::D,
+    (int) SpecialDigits::U,
+    (int) SpecialDigits::T,
+    (int) SpecialDigits::Y
+  },
+  // Modulation Style (STYL)
+  {
+    5,
+    (int) SpecialDigits::T,
+    (int) SpecialDigits::Y,
+    (int) SpecialDigits::L
+  }
+};
+
+static int modStyleNames[3][4] = {
+  // Sync (SYNC)
+  {
+    (int) 5,
+    (int) SpecialDigits::Y,
+    (int) SpecialDigits::N,
+    (int) SpecialDigits::C
+  },
+  // Stay (STAY)
+  {
+    (int) 5,
+    (int) SpecialDigits::T,
+    (int) SpecialDigits::A,
+    (int) SpecialDigits::Y
+  },
+  // Flip (FLIP)
+  {
+    (int) SpecialDigits::F,
+    (int) SpecialDigits::L,
+    (int) 1,
+    (int) SpecialDigits::P
+  },
 };
 
 void Module::_display() {
@@ -468,6 +582,15 @@ void Module::_display() {
     displayState = DisplayState::Preset;
   } else if (_currentState == ModuleState::ParamMenu) {
     displayState = DisplayState::ParamMenu;
+  } else if (_currentState == ModuleState::BeatInput) {
+    displayState = DisplayState::BeatMode;
+  } else if (_currentState == ModuleState::ClockCount) {
+    displayState = DisplayState::InputClockDivide;
+    colon = true;
+  } else if (_currentState == ModuleState::Duty) {
+    displayState = DisplayState::Duty;
+  } else if (_currentState == ModuleState::ModStyle) {
+    displayState = DisplayState::ModStyle;
   } else if (_currentState == ModuleState::Default) {
     if (_temporaryDisplayState == TemporaryDisplayState::None) {
       displayState = DisplayState::Default;
@@ -525,11 +648,24 @@ void Module::_display() {
         outValue[2] = (int) 5;
         outValue[3] = (int) SpecialDigits::T;
       } else {
-        outValue[0] = (int) SpecialDigits::B;
-        outValue[1] = (int) SpecialDigits::E;
-        outValue[2] = (int) SpecialDigits::A;
-        outValue[3] = (int) SpecialDigits::T;
+        outValue[0] = (int) SpecialDigits::Nothing;
+        outValue[1] = (int) SpecialDigits::D;
+        outValue[2] = (int) SpecialDigits::E;
+        outValue[3] = (int) SpecialDigits::F;
       }
+      break;
+    case DisplayState::Duty:
+      outValue[0] = (int) SpecialDigits::D;
+      outValue[1] = (int) SpecialDigits::Nothing;
+      outValue[2] = 0;
+      outDecimal[2] = 1;
+      outValue[3] = (int) (activeState.dutyCycle * 10) % 10;
+      break;
+    case DisplayState::ModStyle:
+      outValue[0] = modStyleNames[(int) activeState.modulationStyle][0];
+      outValue[1] = modStyleNames[(int) activeState.modulationStyle][1];
+      outValue[2] = modStyleNames[(int) activeState.modulationStyle][2];
+      outValue[3] = modStyleNames[(int) activeState.modulationStyle][3];
       break;
     case DisplayState::Countdown:
       outValue[0] = countdownSampleAndHold / 1000;
@@ -570,6 +706,12 @@ void Module::_display() {
       outValue[1] = (int) 0;
       outValue[2] = (int) SpecialDigits::N;
       outValue[3] = (int) SpecialDigits::E;
+      break;
+    case DisplayState::ParamMenu:
+      outValue[0] = paramMenuNames[_menuIndex][0];
+      outValue[1] = paramMenuNames[_menuIndex][1];
+      outValue[2] = paramMenuNames[_menuIndex][2];
+      outValue[3] = paramMenuNames[_menuIndex][3];
       break;
   }
 
@@ -694,6 +836,7 @@ Module::Module()
 , _doneDisplayTimer(std::bind(&Module::_clearTemporaryDisplayCallback, this, _1))
 , _beatButtonHoldTimer(std::bind(&Module::_beatButtonTimerCallback, this, _1))
 , _divButtonHoldTimer(std::bind(&Module::_divButtonTimerCallback, this, _1))
+, _paramMenuDisplayTimer(std::bind(&Module::_paramMenuTimerCallback, this, _1))
 {
   MS_init(&this->messd);
 };
