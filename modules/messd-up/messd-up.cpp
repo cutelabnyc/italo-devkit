@@ -655,7 +655,7 @@ void Module::_display() {
       break;
     case DisplayState::Duty:
       if (activeState.fixedDutyCycle) {
-        outValue[0] = SpecialDigits::Nothing;
+        outValue[0] = (int) SpecialDigits::Nothing;
         outValue[1] = 0;
         outDecimal[1] = 1;
         outValue[2] = 0;
