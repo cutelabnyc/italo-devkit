@@ -256,8 +256,7 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::Duty) {
-      activeState.dutyCycle += (Module::dutyCycleInc * inc);
-      activeState.dutyCycle = fminf(Module::dutyCycleMax, fmaxf(Module::dutyCycleMin, activeState.dutyCycle));
+      activeState.fixedDutyCycle = !activeState.fixedDutyCycle;
       _paramMenuDisplayTimer.restart();
     }
 
@@ -655,11 +654,19 @@ void Module::_display() {
       }
       break;
     case DisplayState::Duty:
-      outValue[0] = (int) SpecialDigits::D;
-      outValue[1] = (int) SpecialDigits::Nothing;
-      outValue[2] = 0;
-      outDecimal[2] = 1;
-      outValue[3] = (int) (activeState.dutyCycle * 10) % 10;
+      if (activeState.fixedDutyCycle) {
+        outValue[0] = SpecialDigits::Nothing;
+        outValue[1] = 0;
+        outDecimal[1] = 1;
+        outValue[2] = 0;
+        outValue[3] = 1;
+      } else {
+        colon = true;
+        outValue[0] = (int) SpecialDigits::Nothing;
+        outValue[1] = 1;
+        outValue[2] = 2;
+        outValue[3] = (int) SpecialDigits::Nothing;
+      }
       break;
     case DisplayState::ModStyle:
       outValue[0] = modStyleNames[(int) activeState.modulationStyle][0];
@@ -913,6 +920,7 @@ void Module::process(float microsDelta) {
   this->ins.subdivisionsPerMeasure = activeDiv;
   this->ins.phase = 0; // unused
   this->ins.ext_clock = clockInput == HIGH;
+  this->ins.useTenMillisecondWidth = activeState.fixedDutyCycle;
 
   this->ins.modulationSignal =
       hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) < (calibratedState.modInputMid + MOD_INPUT_THRESH);

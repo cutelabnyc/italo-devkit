@@ -38,7 +38,7 @@
 #define MOD_BUTTON_RESET_TIME_MICROS (2000000)
 #define TEMPO_DISPLAY_TIME (2000000)
 #define OTHER_DISPLAY_TIME (2000000)
-#define BEATDIV_BUTTON_HOLD_TIME (2000000)
+#define BEATDIV_BUTTON_HOLD_TIME (1000000)
 #define COUNTDOWN_DISPLAY_TIME (500000)
 #define LATCH_PULSE_TIME (500000)
 #define STATE_COMPARE_INTERVAL (100000)
@@ -96,7 +96,7 @@ private:
     uint8_t beat_latch;
     uint8_t beatInputResetMode;
     uint8_t inputClockDivider;
-    float dutyCycle;
+    uint8_t fixedDutyCycle;
     int modulationStyle;
   } SerializableState;
 
@@ -259,7 +259,7 @@ private:
     1,        // beat_latch
     0,        // beatInputResetMode
     1,        // inputClockDivider
-    0.5,      // duty cycle
+    0,        // use fixed duty
     0         // modulation style (sync)
   };
   enum class PresetAction {
