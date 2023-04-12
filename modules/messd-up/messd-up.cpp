@@ -1158,7 +1158,7 @@ void Module::process(float microsDelta) {
   leds_sr_val[(uint8_t)LEDNames::Nothing] = HIGH;
   leds_sr_val[(uint8_t)LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::EoMLED] =
-      this->eomBuffer < EOM_LED_BUFFER_MICROS ? LOW : HIGH;
+      this->eomBuffer < (activeState.fixedDutyCycle ? EOM_BUFFER_MICROS : EOM_LED_BUFFER_MICROS) ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::ClockLEDButton] =
       clockInput == HIGH ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::DownbeatLED] =
