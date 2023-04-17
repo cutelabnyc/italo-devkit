@@ -793,8 +793,6 @@ void Module::initHardware() {
   sei();
 #endif
 
-  this->eomBuffer = EOM_BUFFER_MICROS;
-
   // Analog read pin for the digital mux
   /* hardware.DIGITAL_MUX_IN.PinInit(); */
 
@@ -1007,38 +1005,10 @@ void Module::process(float microsDelta) {
 
   MS_process(&this->messd, &this->ins, &this->outs);
 
-  // static int lastModulationPending = false;
-  // if (!lastModulationPending && this->messd.modulationPending) {
-
-  //     uint8_t originalBeatsPerMeasure = messd.originalBeatsPerMeasure == 0 ?
-  //     messd.beatsPerMeasure : messd.originalBeatsPerMeasure; float
-  //     originalMeasurePhase = (messd.originalBeatCounter +
-  //     messd.rootClockPhase) / originalBeatsPerMeasure; float
-  //     scaledMeasurePhase = (messd.scaledBeatCounter + messd.scaledClockPhase)
-  //     / messd.beatsPerMeasure; float scaleFactor = (1.0f -
-  //     scaledMeasurePhase) / (1.0f - originalMeasurePhase); scaleFactor *=
-  //     ((float) messd.tempoDivide) / ((float) messd.tempoMultiply);
-
-  //     Serial.print(this->messd.originalBeatCounter);
-  //     Serial.print("\t");
-  //     Serial.print(originalBeatsPerMeasure);
-  //     Serial.print("\t");
-  //     Serial.print(this->messd.scaledBeatCounter);
-  //     Serial.print("\t");
-  //     Serial.print(this->messd.beatsPerMeasure);
-  //     Serial.print("\t");
-  //     Serial.print(originalMeasurePhase);
-  //     Serial.print("\t");
-  //     Serial.print(scaledMeasurePhase);
-  //     Serial.print("\t");
-  //     Serial.print(messd.tempoDivide);
-  //     Serial.print("\t");
-  //     Serial.print(messd.tempoMultiply);
-  //     Serial.print("\t");
-  //     Serial.println(scaleFactor);
-  //     Serial.println("---");
-  // }
-  // lastModulationPending = this->messd.modulationPending;
+  float beatPeriod = 30000000.0f * messd.tempoDivide / (messd.measuredTempo * messd.tempoMultiply);
+  float dividePeriod = beatPeriod * messd.beatsPerMeasure / messd.subdivisionsPerMeasure;
+  float beatLEDBuffer = fminf(LED_BUFFER_MICROS, beatPeriod);
+  float divLEDBuffer = fminf(LED_BUFFER_MICROS, dividePeriod);
 
   if (!this->lastDownbeat && this->outs.downbeat) {
     if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
@@ -1053,31 +1023,26 @@ void Module::process(float microsDelta) {
   this->lastDownbeat = this->outs.downbeat;
 
   if (this->outs.eom) {
-    this->eomBuffer = 0;
+    _ledBuffers[(int) LEDOutputs::EoM] = 0;
     this->animateModulateButtonTime = 0.0f;
     this->modButtonFlashTimer = 0.0;
     this->modButtonFlashCount = 0;
 
     this->activeState.subdivisions = this->ins.subdivisionsPerMeasure;
     this->activeState.beats = this->ins.beatsPerMeasure;
+  }
 
-    // Serial.println(this->messd.rootClockPhase);
-    // Serial.println(this->messd.scaledClockPhase);
-    // Serial.println(this->messd.rootClockPhaseOffset);
-    // Serial.println(this->messd.rootBeatCounter);
-    // Serial.println(this->messd.scaledBeatCounter);
-    // Serial.println(this->messd.tempoDivide);
-    // Serial.println(this->messd.tempoMultiply);
-    // float offsetRootMeasurePhase = (this->messd.rootClockPhase +
-    // this->messd.rootBeatCounter + this->messd.rootClockPhaseOffset); if
-    // (offsetRootMeasurePhase > this->messd.tempoDivide) offsetRootMeasurePhase
-    // -= this->messd.tempoDivide;
-
-    // float nextScaledClockPhase = (offsetRootMeasurePhase *
-    // this->messd.tempoMultiply) / this->messd.tempoDivide;
-    // nextScaledClockPhase = fmod(nextScaledClockPhase, 1.0f);
-    // Serial.println(nextScaledClockPhase);
-    // Serial.println("---");
+  if (outs.downbeat) {
+    _ledBuffers[(int) LEDOutputs::Down] = 0;
+  }
+  if (outs.truncate) {
+    _ledBuffers[(int) LEDOutputs::Truncate] = 0;
+  }
+  if (outs.subdivision) {
+    _ledBuffers[(int) LEDOutputs::Divide] = 0;
+  }
+  if (outs.beat) {
+    _ledBuffers[(int) LEDOutputs::Beat] = 0;
   }
 
   if (this->outs.modulationRequestSkipped) {
@@ -1093,20 +1058,6 @@ void Module::process(float microsDelta) {
   if (this->modSwitch == HIGH) {
     this->modulationButtonIgnored = false;
   }
-
-  // Serial.print(this->outs.patternIndex);
-  // Serial.print("\t");
-  // Serial.print(this->outs.chunk);
-  // Serial.print("\t");
-  // Serial.print(this->outs.prescale);
-  // Serial.print("\t");
-  // Serial.print(this->outs.subchunk);
-  // Serial.print("\t");
-  // Serial.print(this->outs.scale);
-  // Serial.print("\t");
-  // Serial.println(this->outs.patternPhase);
-  // Serial.println("---");
-
   // Animate the modulation button
   bool modButtonOn = false;
   if (this->modSwitch == LOW) {
@@ -1138,11 +1089,11 @@ void Module::process(float microsDelta) {
   // Configure outputs
   output_sr_val[(uint8_t)OutputNames::Nothing] = HIGH;
   output_sr_val[(uint8_t)OutputNames::TruncateLED] =
-      this->outs.truncate ? LOW : HIGH;
+    (activeState.fixedDutyCycle ? (_ledBuffers[(int) LEDOutputs::Truncate] < divLEDBuffer) : outs.truncate) ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::DivLED] =
-      this->outs.subdivision ? LOW : HIGH;
+    (activeState.fixedDutyCycle ? (_ledBuffers[(int) LEDOutputs::Divide] < divLEDBuffer) : outs.subdivision) ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::EoMOutput] =
-      this->eomBuffer < EOM_BUFFER_MICROS ? LOW : HIGH;
+      _ledBuffers[(int) LEDOutputs::EoM] < EOM_BUFFER_MICROS ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::TruncateOutput] =
       this->outs.truncate ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::DivOutput] =
@@ -1158,12 +1109,13 @@ void Module::process(float microsDelta) {
   leds_sr_val[(uint8_t)LEDNames::Nothing] = HIGH;
   leds_sr_val[(uint8_t)LEDNames::ModLEDButton] = modButtonOn ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::EoMLED] =
-      this->eomBuffer < (activeState.fixedDutyCycle ? EOM_BUFFER_MICROS : EOM_LED_BUFFER_MICROS) ? LOW : HIGH;
+      _ledBuffers[(int) LEDOutputs::EoM] < LED_BUFFER_MICROS ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::ClockLEDButton] =
       clockInput == HIGH ? LOW : HIGH;
   leds_sr_val[(uint8_t)LEDNames::DownbeatLED] =
-      this->outs.downbeat ? LOW : HIGH;
-  leds_sr_val[(uint8_t)LEDNames::BeatLED] = this->outs.beat ? LOW : HIGH;
+    (activeState.fixedDutyCycle ? (_ledBuffers[(int) LEDOutputs::Down] < beatLEDBuffer) : outs.downbeat) ? LOW : HIGH;
+  leds_sr_val[(uint8_t)LEDNames::BeatLED] =
+    (activeState.fixedDutyCycle ? (_ledBuffers[(int) LEDOutputs::Beat] < beatLEDBuffer) : outs.beat) ? LOW : HIGH;
   _displayLatchLEDs();
 
   hardware.moduleLEDs.process(this->leds_sr_val, 8, true);
@@ -1177,9 +1129,12 @@ void Module::process(float microsDelta) {
   _processTapTempo(microsDelta);
   _processEncoders(ratio);
 
-  this->eomBuffer += microsDelta;
-  if (this->eomBuffer > 5000000)
-    this->eomBuffer = 5000000;
+  for (int i = 0; i < (unsigned int) LEDOutputs::LEDOutputs_LENGTH; i++) {
+    _ledBuffers[i] += microsDelta;
+    if (_ledBuffers[i] > (2 * LED_BUFFER_MICROS)) {
+      _ledBuffers[i] = 2 * LED_BUFFER_MICROS;
+    }
+  }
 
   if (this->modButtonFlashCount < MOD_BUTTON_FLASH_COUNT) {
     this->modButtonFlashTimer += microsDelta;

@@ -29,7 +29,7 @@
 #define NUM_TIMERS (11)
 #define MAX_VOLTAGE (1023)
 #define EOM_BUFFER_MICROS (10000)
-#define EOM_LED_BUFFER_MICROS (250000)
+#define LED_BUFFER_MICROS (150000)
 #define MOD_BUTTON_FLASH_TIME (75000)
 #define MOD_BUTTON_FLASH_COUNT \
   (4) // To make this a bit easier to code, this should always be 2x the number
@@ -176,10 +176,20 @@ private:
   int activeBeats;
   int activeDiv;
 
+  // LED buffers for fixed duty cycle mode
+  enum class LEDOutputs {
+    Down = 0,
+    EoM,
+    Truncate,
+    Divide,
+    Beat,
+    LEDOutputs_LENGTH
+  };
+  float _ledBuffers[(unsigned int) LEDOutputs::LEDOutputs_LENGTH] = { 0, 0, 0, 0, 0 };
+
   // Storage for the modulation switch
   uint8_t modSwitch = HIGH; // active low
   uint8_t canTriggerReset = 1;
-  float eomBuffer = 0.0f;
   float modHoldTime = 0.0;
   uint8_t modButtonFlashCount = MOD_BUTTON_FLASH_COUNT;
   float modButtonFlashTimer = 0.0f;
