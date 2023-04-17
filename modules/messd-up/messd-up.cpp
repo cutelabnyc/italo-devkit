@@ -118,17 +118,24 @@ void Module::_divButtonTimerCallback(float progress)
 {
   if (progress >= 1.0f) {
     // Enter calibration if both buttons have been held down since the start
-    if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW) {
-      if (calibrationPossible) {
-        doCalibrate = true;
-        _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
-        activeState.beat_latch = initial_beat_latch;
-        activeState.div_latch = initial_div_latch;
-      }
-    } else {
+    if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW && calibrationPossible) {
+      doCalibrate = true;
+      _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
+      activeState.beat_latch = initial_beat_latch;
       activeState.div_latch = initial_div_latch;
-      _currentState = ModuleState::ParamMenu;
-      _paramMenuDisplayTimer.start(PRESET_DISPLAY_TIME);
+    } else {
+      if (_currentState == ModuleState::ParamMenu
+        || _currentState == ModuleState::BeatInput
+        || _currentState == ModuleState::ClockCount
+        || _currentState == ModuleState::Duty
+        || _currentState == ModuleState::ModStyle
+      ) {
+        _currentState = ModuleState::Default;
+      } else {
+        activeState.div_latch = initial_div_latch;
+        _currentState = ModuleState::ParamMenu;
+        _paramMenuDisplayTimer.start(PRESET_DISPLAY_TIME);
+      }
     }
   }
 }
@@ -233,40 +240,7 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::ParamMenu) {
-      _menuIndex += inc;
-      if (_menuIndex >= 4) _menuIndex = 0;
-      if (_menuIndex < 0) _menuIndex = 3;
-      _paramMenuDisplayTimer.restart();
-    }
-
-    else if (_currentState == ModuleState::BeatInput) {
-      activeState.beatInputResetMode = !activeState.beatInputResetMode;
-      _paramMenuDisplayTimer.restart();
-    }
-
-    else if (_currentState == ModuleState::ClockCount) {
-      activeState.inputClockDivider += inc;
-      if (activeState.inputClockDivider < Module::inputClockDivideMin) {
-        activeState.inputClockDivider = Module::inputClockDivideMin;
-      } else if (activeState.inputClockDivider > Module::inputClockDivideMax) {
-        activeState.inputClockDivider = Module::inputClockDivideMax;
-      }
-      atomicInputClockDivider = activeState.inputClockDivider;
-      _paramMenuDisplayTimer.restart();
-    }
-
-    else if (_currentState == ModuleState::Duty) {
-      activeState.fixedDutyCycle = !activeState.fixedDutyCycle;
-      _paramMenuDisplayTimer.restart();
-    }
-
-    else if (_currentState == ModuleState::ModStyle) {
-      activeState.modulationStyle += inc;
-      if (activeState.modulationStyle < 0) {
-        activeState.modulationStyle = 2;
-      } else if (activeState.modulationStyle > 2) {
-        activeState.modulationStyle = 0;
-      }
+      // Beat encoder is a no-op here
       _paramMenuDisplayTimer.restart();
     }
   }
@@ -302,8 +276,41 @@ void Module::_processEncoders(float ratio) {
     }
 
     else if (_currentState == ModuleState::ParamMenu) {
-      // Div encoder is a no-op here
-      _presetDisplayTimer.restart();
+      _menuIndex += inc;
+      if (_menuIndex >= 4) _menuIndex = 0;
+      if (_menuIndex < 0) _menuIndex = 3;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::BeatInput) {
+      activeState.beatInputResetMode = !activeState.beatInputResetMode;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::ClockCount) {
+      activeState.inputClockDivider += inc;
+      if (activeState.inputClockDivider < Module::inputClockDivideMin) {
+        activeState.inputClockDivider = Module::inputClockDivideMin;
+      } else if (activeState.inputClockDivider > Module::inputClockDivideMax) {
+        activeState.inputClockDivider = Module::inputClockDivideMax;
+      }
+      atomicInputClockDivider = activeState.inputClockDivider;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::Duty) {
+      activeState.fixedDutyCycle = !activeState.fixedDutyCycle;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::ModStyle) {
+      activeState.modulationStyle += inc;
+      if (activeState.modulationStyle < 0) {
+        activeState.modulationStyle = 2;
+      } else if (activeState.modulationStyle > 2) {
+        activeState.modulationStyle = 0;
+      }
+      _paramMenuDisplayTimer.restart();
     }
   }
 }
@@ -379,13 +386,24 @@ void Module::_divSwitchPressed() {
     _currentState = ModuleState::Default;
     _presetDisplayTimer.clear();
   } else if (_currentState == ModuleState::ParamMenu) {
-    _currentState = ModuleState::Default;
+    if (_menuIndex == 0) {
+      _currentState = ModuleState::ClockCount;
+    } else if (_menuIndex == 1) {
+      _currentState = ModuleState::BeatInput;
+    } else if (_menuIndex == 2) {
+      _currentState = ModuleState::Duty;
+    } else if (_menuIndex == 3) {
+      _currentState = ModuleState::ModStyle;
+    }
+    _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
+    _paramMenuDisplayTimer.restart();
   } else if (
     _currentState == ModuleState::BeatInput
     || _currentState == ModuleState::ClockCount
     || _currentState == ModuleState::Duty
     || _currentState == ModuleState::ModStyle
   ) {
+    _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
     _currentState = ModuleState::ParamMenu;
     _paramMenuDisplayTimer.restart();
   }
@@ -418,16 +436,7 @@ void Module::_beatSwitchPressed() {
     _currentState = ModuleState::Default;
     _presetDisplayTimer.clear();
   } else if (_currentState == ModuleState::ParamMenu) {
-    if (_menuIndex == 0) {
-      _currentState = ModuleState::ClockCount;
-    } else if (_menuIndex == 1) {
-      _currentState = ModuleState::BeatInput;
-    } else if (_menuIndex == 2) {
-      _currentState = ModuleState::Duty;
-    } else if (_menuIndex == 3) {
-      _currentState = ModuleState::ModStyle;
-    }
-    _paramMenuDisplayTimer.restart();
+    // no-op
   } else if (
     _currentState == ModuleState::ClockCount
     || _currentState == ModuleState::BeatInput
