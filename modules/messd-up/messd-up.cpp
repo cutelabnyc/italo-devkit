@@ -120,6 +120,7 @@ void Module::_divButtonTimerCallback(float progress)
     // Enter calibration if both buttons have been held down since the start
     if (hardware.digitalMux.getOutput(DigitalMux.BEAT_SWITCH) == LOW && calibrationPossible) {
       doCalibrate = true;
+      Serial.println("Calibrate");
       _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
       activeState.beat_latch = initial_beat_latch;
       activeState.div_latch = initial_div_latch;
@@ -147,6 +148,7 @@ void Module::_beatButtonTimerCallback(float progress)
     if (hardware.digitalMux.getOutput(DigitalMux.DIV_SWITCH) == LOW) {
       if (calibrationPossible) {
         doCalibrate = true;
+        Serial.println("Calibrate");
         _displayTemporaryWithTimer(TemporaryDisplayState::Calibrate, &_calibrateDisplayTimer, OTHER_DISPLAY_TIME);
         activeState.beat_latch = initial_beat_latch;
         activeState.div_latch = initial_div_latch;
@@ -753,12 +755,15 @@ void Module::_displayLatchLEDs()
 {
   if (activeState.beat_latch) {
     if (activeState.beats != messd.beatsPerMeasure) {
+      Serial.println("activate beat latch timer");
       if (!_beatLatchFlashTimer.active()) {
         _beatLatchFlashTimer.start(LATCH_PULSE_TIME, -1);
       }
     } else {
       _beatLatchFlashTimer.clear();
     }
+  } else {
+    _beatLatchFlashState = false;
   }
 
   if (activeState.div_latch) {
@@ -769,6 +774,8 @@ void Module::_displayLatchLEDs()
     } else {
       _divLatchFlashTimer.clear();
     }
+  } else {
+    _divLatchFlashState = false;
   }
 
   bool beatLatchDisplay = activeState.beat_latch;

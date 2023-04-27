@@ -252,8 +252,8 @@ private:
   // Storage for the latch switches
   uint8_t initial_div_latch = 0;
   uint8_t initial_beat_latch = 0;
-  uint8_t beat_switch_state_prev = 0;
-  uint8_t div_switch_state_prev = 0;
+  uint8_t beat_switch_state_prev = HIGH;
+  uint8_t div_switch_state_prev = HIGH;
   uint8_t canSwitchBeatInputModes = 1;
   bool _beatLatchFlashState = false;
   Timer _beatLatchFlashTimer;
