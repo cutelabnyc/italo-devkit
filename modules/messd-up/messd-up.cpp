@@ -331,7 +331,7 @@ void Module::_processTapTempo(float microsDelta) {
       }
 
       // Treat it as the first tap if it's been more than two seconds
-      if (delta > 2000000) {
+      if (delta > 2000000 || this->lastTapMicros == 0) {
         totalTaps = 1;
       } else if (totalTaps == 1) {
         activeState.tapTempo = 60000000.0 / ((double)delta);
@@ -486,6 +486,10 @@ void Module::_processCalibration(float microsdelta)
     calibratedState.beatInputMid = hardware.analogMux.getOutput(AnalogMux.BEAT_INPUT);
     calibratedState.truncInputMid = hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT);
 
+    calibratedState.divInputMid = DIV_INPUT_MAX - calibratedState.divInputMid + DIV_INPUT_MIN; // invert
+    calibratedState.beatInputMid = BEAT_INPUT_MAX - calibratedState.beatInputMid + BEAT_INPUT_MIN; // invert
+    calibratedState.truncInputMid = TRUNC_INPUT_MAX - calibratedState.truncInputMid + TRUNC_INPUT_MIN; // invert
+
     char buff[128];
     sprintf(buff, "/littlefs/calibration.txt");
     _nonVolatileStorage.store(buff, &calibratedState);
@@ -632,10 +636,12 @@ void Module::_display() {
     case DisplayState::Default:
       outValue[0] = activeDiv / 10;
       outValue[1] = activeDiv % 10;
-      outDecimal[1] = this->outs.subdivision;
+      // outDecimal[1] = this->outs.subdivision;
+      outDecimal[1] = 0;
       outValue[2] = activeBeats / 10;
       outValue[3] = activeBeats % 10;
-      outDecimal[3] = this->outs.beat;
+      // outDecimal[3] = this->outs.beat;
+      outDecimal[3] = 0;
       break;
     case DisplayState::Pop:
       outValue[0] = (int)SpecialDigits::Dash;
@@ -755,7 +761,6 @@ void Module::_displayLatchLEDs()
 {
   if (activeState.beat_latch) {
     if (activeState.beats != messd.beatsPerMeasure) {
-      Serial.println("activate beat latch timer");
       if (!_beatLatchFlashTimer.active()) {
         _beatLatchFlashTimer.start(LATCH_PULSE_TIME, -1);
       }
@@ -902,6 +907,7 @@ void Module::process(float microsDelta) {
   // Handle the slight asymmetry in the div input
   int divInput = hardware.analogMux.getOutput(AnalogMux.DIVIDE_INPUT);
   divInput = max(DIV_INPUT_MIN, min(DIV_INPUT_MAX, divInput));
+  divInput = DIV_INPUT_MAX - divInput + DIV_INPUT_MIN; // invert
   int32_t qdivInput = _divCVQuantizer.process(divInput);
 
   static float divAttenuvertRange = (DIV_ATV_MAX - DIV_ATV_MIN);
@@ -919,12 +925,8 @@ void Module::process(float microsDelta) {
   int beatsOffset = 0;
   int beatsBase = activeState.beats;
   if (!activeState.beatInputResetMode) {
-    // Serial.print("b: ");
-    // Serial.print(rawBeatInput);
-    // Serial.print(", ");
-    int beatSigInput = max(BEAT_INPUT_MIN, min(BEAT_INPUT_MAX, rawBeatInput));
+    int beatSigInput = max(BEAT_INPUT_MIN, min(BEAT_INPUT_MAX, invRawBeatInput));
     beatsOffset = _beatCVQuantizer.process(beatSigInput);
-    // Serial.println(beatsOffset);
   }
   activeBeats = min(beatsDivMax, max(beatsDivMin, beatsBase + beatsOffset));
 
@@ -964,7 +966,8 @@ void Module::process(float microsDelta) {
       (float)(truncAttenuverterInput - TRUNC_ATV_MIN) /
       (float)truncAttenuverterRange;
   int truncationInput = hardware.analogMux.getOutput(AnalogMux.TRUNCATE_INPUT);
-  truncationInput = min(TRUNC_INPUT_MAX, max(TRUNC_ATV_MIN, truncationInput));
+  truncationInput = min(TRUNC_INPUT_MAX, max(TRUNC_INPUT_MIN, truncationInput));
+  truncationInput = TRUNC_INPUT_MAX - truncationInput  + TRUNC_INPUT_MIN; // invert
   float truncationOffset = 0.0f;
   if (truncationInput > calibratedState.truncInputMid) {
     truncationOffset = (float)(truncationInput - calibratedState.truncInputMid) / ((float) (TRUNC_INPUT_MAX - calibratedState.truncInputMid));
