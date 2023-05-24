@@ -50,7 +50,7 @@
 class Module : public ModuleInterface<messd_ins_t, messd_outs_t> {
 private:
 
-  static const int beatsDivMin = 2;
+  static const int beatsDivMin = 1;
   static const int beatsDivMax = 32;
   static const int tempoMin = 10;
   static const int tempoMax = 500;
