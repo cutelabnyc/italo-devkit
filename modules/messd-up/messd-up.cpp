@@ -1195,9 +1195,9 @@ void Module::process(float microsDelta) {
   output_sr_val[(uint8_t)OutputNames::TruncateOutput] =
       this->outs.truncate ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::DivOutput] =
-      this->outs.subdivision ? LOW : HIGH;
+      this->outs.div_ppqn ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::DownbeatOutput] =
-      this->outs.downbeat ? LOW : HIGH;
+      this->outs.beat_ppqn ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
       this->outs.beat ? LOW : HIGH;
 
