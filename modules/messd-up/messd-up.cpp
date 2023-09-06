@@ -420,6 +420,7 @@ void Module::_beatSwitchPressed() {
     bool displayDone = false;
     if (presetAction == PresetAction::Recall) {
       _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
+      tapTempoOut = activeState.tapTempo;
       displayDone = true;
     } else if (presetAction == PresetAction::Store) {
       _nonVolatileStorage.storePreset(targetPresetIndex, &activeState);
