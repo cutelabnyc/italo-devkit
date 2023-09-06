@@ -1015,6 +1015,8 @@ void Module::process(float microsDelta) {
   this->ins.ext_clock = clockInput == HIGH;
   this->ins.useTenMillisecondWidth = activeState.fixedDutyCycle;
   this->ins.modulationStyle = activeState.modulationStyle;
+  this->ins.beatOutputMultiplier = activeState.beatMult;
+  this->ins.divOutputMultiplier = activeState.divMult;
 
   this->ins.modulationSignal =
       hardware.analogMux.getOutput(AnalogMux.MOD_INPUT) < (calibratedState.modInputMid + MOD_INPUT_THRESH);
