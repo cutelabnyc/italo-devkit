@@ -98,6 +98,8 @@ private:
     uint8_t inputClockDivider;
     uint8_t fixedDutyCycle;
     int modulationStyle;
+    int beatMult;
+    int divMult;
   } SerializableState;
 
   typedef struct Calibration {
@@ -135,6 +137,8 @@ private:
     Preset,
     ParamMenu,
     ClockCount,
+    BeatMult,
+    DivMult,
     BeatInput,
     Duty,
     ModStyle
@@ -270,7 +274,9 @@ private:
     0,        // beatInputResetMode
     1,        // inputClockDivider
     0,        // use fixed duty
-    0         // modulation style (sync)
+    0,        // modulation style (sync)
+    1,        // beat out multiplication (ppqn)
+    1         // div out multiplication (ppqn)
   };
   enum class PresetAction {
     None = 0,

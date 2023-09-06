@@ -105,6 +105,8 @@ void Module::_paramMenuTimerCallback(float progress)
     if (
       _currentState == ModuleState::ParamMenu
       || _currentState == ModuleState::BeatInput
+      || _currentState == ModuleState::BeatMult
+      || _currentState == ModuleState::DivMult
       || _currentState == ModuleState::ClockCount
       || _currentState == ModuleState::Duty
       || _currentState == ModuleState::ModStyle
@@ -127,6 +129,8 @@ void Module::_divButtonTimerCallback(float progress)
     } else {
       if (_currentState == ModuleState::ParamMenu
         || _currentState == ModuleState::BeatInput
+        || _currentState == ModuleState::BeatMult
+        || _currentState == ModuleState::DivMult
         || _currentState == ModuleState::ClockCount
         || _currentState == ModuleState::Duty
         || _currentState == ModuleState::ModStyle
@@ -279,13 +283,45 @@ void Module::_processEncoders(float ratio) {
 
     else if (_currentState == ModuleState::ParamMenu) {
       _menuIndex += inc;
-      if (_menuIndex >= 4) _menuIndex = 0;
-      if (_menuIndex < 0) _menuIndex = 3;
+      if (_menuIndex >= 6) _menuIndex = 0;
+      if (_menuIndex < 0) _menuIndex = 5;
       _paramMenuDisplayTimer.restart();
     }
 
     else if (_currentState == ModuleState::BeatInput) {
       activeState.beatInputResetMode = !activeState.beatInputResetMode;
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::BeatMult) {
+      if (inc >= 1) {
+        activeState.beatMult = activeState.beatMult << 1;
+        if (activeState.beatMult >= (1 << 4)) {
+          activeState.beatMult = 1;
+        }
+      } else if (inc < 0) {
+        if (activeState.beatMult == 1) {
+          activeState.beatMult = (1 << 3);
+        } else {
+          activeState.beatMult = activeState.beatMult >> 1;
+        }
+      }
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::DivMult) {
+      if (inc >= 1) {
+        activeState.divMult = activeState.divMult << 1;
+        if (activeState.divMult >= (1 << 4)) {
+          activeState.divMult = 1;
+        }
+      } else if (inc < 0) {
+        if (activeState.divMult == 1) {
+          activeState.divMult = (1 << 3);
+        } else {
+          activeState.divMult = activeState.divMult >> 1;
+        }
+      }
       _paramMenuDisplayTimer.restart();
     }
 
@@ -391,17 +427,23 @@ void Module::_divSwitchPressed() {
     if (_menuIndex == 0) {
       _currentState = ModuleState::ClockCount;
     } else if (_menuIndex == 1) {
-      _currentState = ModuleState::BeatInput;
+      _currentState = ModuleState::BeatMult;
     } else if (_menuIndex == 2) {
-      _currentState = ModuleState::Duty;
+      _currentState = ModuleState::DivMult;
     } else if (_menuIndex == 3) {
+      _currentState = ModuleState::BeatInput;
+    } else if (_menuIndex == 4) {
+      _currentState = ModuleState::Duty;
+    } else if (_menuIndex == 5) {
       _currentState = ModuleState::ModStyle;
     }
     _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
     _paramMenuDisplayTimer.restart();
   } else if (
-    _currentState == ModuleState::BeatInput
-    || _currentState == ModuleState::ClockCount
+    _currentState == ModuleState::ClockCount
+    || _currentState == ModuleState::BeatMult
+    || _currentState == ModuleState::DivMult
+    || _currentState == ModuleState::BeatInput
     || _currentState == ModuleState::Duty
     || _currentState == ModuleState::ModStyle
   ) {
@@ -442,6 +484,8 @@ void Module::_beatSwitchPressed() {
     // no-op
   } else if (
     _currentState == ModuleState::ClockCount
+    || _currentState == ModuleState::BeatMult
+    || _currentState == ModuleState::DivMult
     || _currentState == ModuleState::BeatInput
     || _currentState == ModuleState::Duty
     || _currentState == ModuleState::ModStyle
@@ -505,6 +549,8 @@ enum class DisplayState {
   Tempo,
   Pop,
   InputClockDivide,
+  BeatMult,
+  DivMult,
   BeatMode,
   Countdown,
   BeatsEqualDivs,
@@ -516,12 +562,26 @@ enum class DisplayState {
   ModStyle
 };
 
-static int paramMenuNames[4][4] = {
+static int paramMenuNames[6][4] = {
   // Clock Count (CLCT)
   {
     (int) SpecialDigits::C,
     (int) SpecialDigits::L,
     (int) SpecialDigits::C,
+    (int) SpecialDigits::T
+  },
+  // Beat Multiply (BCNT)
+  {
+    (int) SpecialDigits::B,
+    (int) SpecialDigits::C,
+    (int) SpecialDigits::N,
+    (int) SpecialDigits::T
+  },
+  // Div Multiply (DCNT)
+  {
+    (int) SpecialDigits::D,
+    (int) SpecialDigits::C,
+    (int) SpecialDigits::N,
     (int) SpecialDigits::T
   },
   // Beat Input Mode (BEAT)
@@ -599,6 +659,10 @@ void Module::_display() {
     displayState = DisplayState::ParamMenu;
   } else if (_currentState == ModuleState::BeatInput) {
     displayState = DisplayState::BeatMode;
+  } else if (_currentState == ModuleState::BeatMult) {
+    displayState = DisplayState::BeatMult;
+  } else if (_currentState == ModuleState::DivMult) {
+    displayState = DisplayState::DivMult;
   } else if (_currentState == ModuleState::ClockCount) {
     displayState = DisplayState::InputClockDivide;
     colon = true;
@@ -670,6 +734,18 @@ void Module::_display() {
         outValue[2] = (int) SpecialDigits::E;
         outValue[3] = (int) SpecialDigits::F;
       }
+      break;
+    case DisplayState::BeatMult:
+      outValue[0] = (int) activeState.beatMult;
+      outValue[1] = (int) SpecialDigits::P;
+      outValue[2] = (int) SpecialDigits::P;
+      outValue[3] = (int) SpecialDigits::N;
+      break;
+    case DisplayState::DivMult:
+      outValue[0] = (int) activeState.divMult;
+      outValue[1] = (int) SpecialDigits::P;
+      outValue[2] = (int) SpecialDigits::P;
+      outValue[3] = (int) SpecialDigits::N;
       break;
     case DisplayState::Duty:
       if (activeState.fixedDutyCycle) {
