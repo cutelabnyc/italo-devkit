@@ -1197,9 +1197,9 @@ void Module::process(float microsDelta) {
   output_sr_val[(uint8_t)OutputNames::DivOutput] =
       this->outs.div_ppqn ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::DownbeatOutput] =
-      this->outs.beat_ppqn ? LOW : HIGH;
+      this->outs.downbeat ? LOW : HIGH;
   output_sr_val[(uint8_t)OutputNames::BeatOutput] =
-      this->outs.beat ? LOW : HIGH;
+      this->outs.beat_ppqn ? LOW : HIGH;
 
   hardware.moduleOuts.process(this->output_sr_val, 8, true);
 
