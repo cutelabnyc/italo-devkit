@@ -462,6 +462,7 @@ void Module::_beatSwitchPressed() {
     bool displayDone = false;
     if (presetAction == PresetAction::Recall) {
       _nonVolatileStorage.readPreset(targetPresetIndex, &activeState);
+      this->ins.reset = true;
       tapTempoOut = activeState.tapTempo;
       displayDone = true;
     } else if (presetAction == PresetAction::Store) {
@@ -1029,7 +1030,7 @@ void Module::process(float microsDelta) {
   this->ins.invert = 0; // unused
   this->ins.isRoundTrip = isRoundTripMode;
 
-  if (this->modHoldTime > MOD_BUTTON_RESET_TIME_MICROS && this->canTriggerReset) {
+  if (this->ins.reset || (this->modHoldTime > MOD_BUTTON_RESET_TIME_MICROS && this->canTriggerReset)) {
     this->ins.reset = true;
     this->canTriggerReset = false;
   } else {
@@ -1226,6 +1227,7 @@ void Module::process(float microsDelta) {
   hardware.digitalMux.process();
   _processTapTempo(microsDelta);
   _processEncoders(ratio);
+  this->ins.reset = false;
 
   for (int i = 0; i < (unsigned int) LEDOutputs::LEDOutputs_LENGTH; i++) {
     _ledBuffers[i] += microsDelta;
