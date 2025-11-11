@@ -44,6 +44,7 @@
 #define STATE_COMPARE_INTERVAL (100000)
 #define STATE_COMMIT_INTERVAL (15000000)
 #define PRESET_DISPLAY_TIME (10000000)
+#define ABSENT_CLOCK_DETECT_TIME (2000000)
 
 // #define IS_POWERED_FROM_ARDUINO
 
@@ -120,6 +121,7 @@ private:
   unsigned long lastRecordedHighClockTime = 0;
   unsigned long measuredPeriod = 500000;
   uint8_t hasProcessedHighClock = false;
+  unsigned long timeSinceLastHighClock = 0;
 
   uint8_t digitCounter = 0;
 

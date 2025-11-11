@@ -993,6 +993,17 @@ void Module::process(float microsDelta) {
   isClockInternal = !digitalRead(clockJackSwitch);
   uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
   float ratio = (float) this->messd.tempoDivide / (float) this->messd.tempoMultiply;
+  if (isClockInternal) {
+    this->timeSinceLastHighClock = 0;
+  } else {
+    if (clockInput != HIGH && this->timeSinceLastHighClock < ABSENT_CLOCK_DETECT_TIME) {
+      this->timeSinceLastHighClock += microsDelta;
+    }
+    if (clockInput == HIGH) {
+      this->timeSinceLastHighClock = 0;
+    }
+  }
+  bool gateOutputs = (this->timeSinceLastHighClock > ABSENT_CLOCK_DETECT_TIME);
 
   hardware.analogMux.process();
   isRoundTripMode = hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
@@ -1168,6 +1179,14 @@ void Module::process(float microsDelta) {
 
     this->activeState.subdivisions = this->ins.subdivisionsPerMeasure;
     this->activeState.beats = this->ins.beatsPerMeasure;
+  }
+
+  if (gateOutputs) {
+    outs.downbeat = 0;
+    outs.truncate = 0;
+    outs.subdivision = 0;
+    outs.beat = 0;
+    outs.eom = 0;
   }
 
   if (outs.downbeat) {
