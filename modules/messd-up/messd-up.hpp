@@ -100,6 +100,7 @@ private:
     int modulationStyle;
     int beatMult;
     int divMult;
+    int clockStop;
   } SerializableState;
 
   typedef struct Calibration {
@@ -141,7 +142,8 @@ private:
     DivMult,
     BeatInput,
     Duty,
-    ModStyle
+    ModStyle,
+    ClockStop
   };
 
   ModuleState _currentState = ModuleState::Default;
@@ -276,7 +278,8 @@ private:
     0,        // use fixed duty
     0,        // modulation style (sync)
     1,        // beat out multiplication (ppqn)
-    1         // div out multiplication (ppqn)
+    1,        // div out multiplication (ppqn)
+    0         // clock stop (cstp)
   };
   enum class PresetAction {
     None = 0,

@@ -110,6 +110,7 @@ void Module::_paramMenuTimerCallback(float progress)
       || _currentState == ModuleState::ClockCount
       || _currentState == ModuleState::Duty
       || _currentState == ModuleState::ModStyle
+      || _currentState == ModuleState::ClockStop
     ) {
       _currentState = ModuleState::Default;
     }
@@ -134,6 +135,7 @@ void Module::_divButtonTimerCallback(float progress)
         || _currentState == ModuleState::ClockCount
         || _currentState == ModuleState::Duty
         || _currentState == ModuleState::ModStyle
+        || _currentState == ModuleState::ClockStop
       ) {
         _currentState = ModuleState::Default;
       } else {
@@ -283,8 +285,8 @@ void Module::_processEncoders(float ratio) {
 
     else if (_currentState == ModuleState::ParamMenu) {
       _menuIndex += inc;
-      if (_menuIndex >= 6) _menuIndex = 0;
-      if (_menuIndex < 0) _menuIndex = 5;
+      if (_menuIndex >= 7) _menuIndex = 0;
+      if (_menuIndex < 0) _menuIndex = 6;
       _paramMenuDisplayTimer.restart();
     }
 
@@ -347,6 +349,16 @@ void Module::_processEncoders(float ratio) {
         activeState.modulationStyle = 2;
       } else if (activeState.modulationStyle > 2) {
         activeState.modulationStyle = 0;
+      }
+      _paramMenuDisplayTimer.restart();
+    }
+
+    else if (_currentState == ModuleState::ClockStop) {
+      activeState.clockStop += inc;
+      if (activeState.clockStop < 0) {
+        activeState.clockStop = 1;
+      } else if (activeState.clockStop > 1) {
+        activeState.clockStop = 0;
       }
       _paramMenuDisplayTimer.restart();
     }
@@ -436,6 +448,8 @@ void Module::_divSwitchPressed() {
       _currentState = ModuleState::Duty;
     } else if (_menuIndex == 5) {
       _currentState = ModuleState::ModStyle;
+    } else if (_menuIndex == 6) {
+      _currentState = ModuleState::ClockStop;
     }
     _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
     _paramMenuDisplayTimer.restart();
@@ -446,6 +460,7 @@ void Module::_divSwitchPressed() {
     || _currentState == ModuleState::BeatInput
     || _currentState == ModuleState::Duty
     || _currentState == ModuleState::ModStyle
+    || _currentState == ModuleState::ClockStop
   ) {
     _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
     _currentState = ModuleState::ParamMenu;
@@ -490,6 +505,7 @@ void Module::_beatSwitchPressed() {
     || _currentState == ModuleState::BeatInput
     || _currentState == ModuleState::Duty
     || _currentState == ModuleState::ModStyle
+    || _currentState == ModuleState::ClockStop
   ) {
     _currentState = ModuleState::Default;
     _paramMenuDisplayTimer.restart();
@@ -560,10 +576,11 @@ enum class DisplayState {
   Done,
   ParamMenu,
   Duty,
-  ModStyle
+  ModStyle,
+  ClockStop
 };
 
-static int paramMenuNames[6][4] = {
+static int paramMenuNames[7][4] = {
   // Clock Count (CLCT)
   {
     (int) SpecialDigits::C,
@@ -605,6 +622,13 @@ static int paramMenuNames[6][4] = {
     (int) SpecialDigits::T,
     (int) SpecialDigits::Y,
     (int) SpecialDigits::L
+  },
+  // Clock Stop (CSTP)
+  {
+    (int) SpecialDigits::C,
+    5,
+    (int) SpecialDigits::T,
+    (int) SpecialDigits::P
   }
 };
 
@@ -671,6 +695,8 @@ void Module::_display() {
     displayState = DisplayState::Duty;
   } else if (_currentState == ModuleState::ModStyle) {
     displayState = DisplayState::ModStyle;
+  } else if (_currentState == ModuleState::ClockStop) {
+    displayState = DisplayState::ClockStop;
   } else if (_currentState == ModuleState::Default) {
     if (_temporaryDisplayState == TemporaryDisplayState::None) {
       displayState = DisplayState::Default;
@@ -768,6 +794,19 @@ void Module::_display() {
       outValue[1] = modStyleNames[(int) activeState.modulationStyle][1];
       outValue[2] = modStyleNames[(int) activeState.modulationStyle][2];
       outValue[3] = modStyleNames[(int) activeState.modulationStyle][3];
+      break;
+    case DisplayState::ClockStop:
+      if (activeState.clockStop == 0) {
+        outValue[0] = (int) SpecialDigits::Nothing;
+        outValue[1] = 0;
+        outValue[2] = (int) SpecialDigits::F;
+        outValue[3] = (int) SpecialDigits::F;
+      } else if (activeState.clockStop == 1) {
+        outValue[0] = (int) SpecialDigits::Nothing;
+        outValue[1] = (int) SpecialDigits::Nothing;
+        outValue[2] = 0;
+        outValue[3] = (int) SpecialDigits::N;
+      }
       break;
     case DisplayState::Countdown:
       outValue[0] = countdownSampleAndHold / 1000;
