@@ -496,10 +496,9 @@ void Module::_beatSwitchPressed() {
     presetAction = PresetAction::None;
     _currentState = ModuleState::Default;
     _presetDisplayTimer.clear();
-  } else if (_currentState == ModuleState::ParamMenu) {
-    // no-op
   } else if (
-    _currentState == ModuleState::ClockCount
+    _currentState == ModuleState::ParamMenu
+    || _currentState == ModuleState::ClockCount
     || _currentState == ModuleState::BeatMult
     || _currentState == ModuleState::DivMult
     || _currentState == ModuleState::BeatInput
