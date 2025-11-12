@@ -439,17 +439,17 @@ void Module::_divSwitchPressed() {
     if (_menuIndex == 0) {
       _currentState = ModuleState::ClockCount;
     } else if (_menuIndex == 1) {
-      _currentState = ModuleState::BeatMult;
+      _currentState = ModuleState::ClockStop;
     } else if (_menuIndex == 2) {
-      _currentState = ModuleState::DivMult;
+      _currentState = ModuleState::BeatMult;
     } else if (_menuIndex == 3) {
-      _currentState = ModuleState::BeatInput;
+      _currentState = ModuleState::DivMult;
     } else if (_menuIndex == 4) {
       _currentState = ModuleState::Duty;
     } else if (_menuIndex == 5) {
-      _currentState = ModuleState::ModStyle;
+      _currentState = ModuleState::BeatInput;
     } else if (_menuIndex == 6) {
-      _currentState = ModuleState::ClockStop;
+      _currentState = ModuleState::ModStyle;
     }
     _divButtonHoldTimer.start(BEATDIV_BUTTON_HOLD_TIME);
     _paramMenuDisplayTimer.restart();
@@ -588,6 +588,13 @@ static int paramMenuNames[7][4] = {
     (int) SpecialDigits::C,
     (int) SpecialDigits::T
   },
+  // Clock Stop (CSTP)
+  {
+    (int) SpecialDigits::C,
+    5,
+    (int) SpecialDigits::T,
+    (int) SpecialDigits::P
+  },
   // Beat Multiply (BCNT)
   {
     (int) SpecialDigits::B,
@@ -602,19 +609,19 @@ static int paramMenuNames[7][4] = {
     (int) SpecialDigits::N,
     (int) SpecialDigits::T
   },
-  // Beat Input Mode (BEAT)
-  {
-    (int) SpecialDigits::B,
-    (int) SpecialDigits::E,
-    (int) SpecialDigits::A,
-    (int) SpecialDigits::T
-  },
   // Duty Cycle (DUTY)
   {
     (int) SpecialDigits::D,
     (int) SpecialDigits::U,
     (int) SpecialDigits::T,
     (int) SpecialDigits::Y
+  },
+  // Beat Input Mode (BEAT)
+  {
+    (int) SpecialDigits::B,
+    (int) SpecialDigits::E,
+    (int) SpecialDigits::A,
+    (int) SpecialDigits::T
   },
   // Modulation Style (STYL)
   {
@@ -623,13 +630,6 @@ static int paramMenuNames[7][4] = {
     (int) SpecialDigits::Y,
     (int) SpecialDigits::L
   },
-  // Clock Stop (CSTP)
-  {
-    (int) SpecialDigits::C,
-    5,
-    (int) SpecialDigits::T,
-    (int) SpecialDigits::P
-  }
 };
 
 static int modStyleNames[3][4] = {
