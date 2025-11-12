@@ -991,19 +991,17 @@ void Module::process(float microsDelta) {
   }
 
   isClockInternal = !digitalRead(clockJackSwitch);
+  long absentClockDetectTime = DEFAULT_ABSENT_CLOCK_DETECT_TIME;
+  if (hasProcessedHighClock) {
+    absentClockDetectTime = measuredPeriod * 3.1f;
+  }
   uint8_t clockInput = isClockInternal ? lastInternalClockState : lastExternalClock;
   float ratio = (float) this->messd.tempoDivide / (float) this->messd.tempoMultiply;
-  if (isClockInternal) {
-    this->timeSinceLastHighClock = 0;
-  } else {
-    if (clockInput != HIGH && this->timeSinceLastHighClock < ABSENT_CLOCK_DETECT_TIME) {
-      this->timeSinceLastHighClock += microsDelta;
-    }
-    if (clockInput == HIGH) {
-      this->timeSinceLastHighClock = 0;
-    }
+  long timeSinceLastClockEdge = micros() - lastHighClockTime;
+  if (isClockInternal || clockInput == HIGH) {
+    timeSinceLastClockEdge = 0;
   }
-  bool gateOutputs = (this->timeSinceLastHighClock > ABSENT_CLOCK_DETECT_TIME);
+  bool gateOutputs = (2.1 * timeSinceLastClockEdge > absentClockDetectTime) && activeState.clockStop == 1;
 
   hardware.analogMux.process();
   isRoundTripMode = hardware.analogMux.getOutput(AnalogMux.ROUND_SWITCH) < (MAX_VOLTAGE >> 1);
@@ -1145,19 +1143,30 @@ void Module::process(float microsDelta) {
   } else {
     offset = (4294967295 - this->lastProcessTime) + now; // wraparound
   }
-  this->lastProcessTime = now;
-  this->ins.delta = ((float)offset) / 1000.0;
 
   hardware.digitalMux.process();
   _processTapTempo(microsDelta);
   _processEncoders(ratio);
 
-  MS_process(&this->messd, &this->ins, &this->outs);
+  // simply skip processing entirely if clock is absent and gate outputs are disabled
+  if (!gateOutputs) {
+    this->lastProcessTime = now;
+    this->ins.delta = ((float)offset) / 1000.0;
+    MS_process(&this->messd, &this->ins, &this->outs);
+  }
 
   float beatPeriod = 30000000.0f * messd.tempoDivide / (messd.measuredTempo * messd.tempoMultiply);
   float dividePeriod = beatPeriod * messd.beatsPerMeasure / messd.subdivisionsPerMeasure;
   float beatLEDBuffer = fminf(LED_BUFFER_MICROS, beatPeriod);
   float divLEDBuffer = fminf(LED_BUFFER_MICROS, dividePeriod);
+
+  if (gateOutputs) {
+    outs.downbeat = 0;
+    outs.truncate = 0;
+    outs.subdivision = 0;
+    outs.beat = 0;
+    outs.eom = 0;
+  }
 
   if (!this->lastDownbeat && this->outs.downbeat) {
     if (this->messd.modulationPending && this->messd.inRoundTripModulation) {
@@ -1179,14 +1188,6 @@ void Module::process(float microsDelta) {
 
     this->activeState.subdivisions = this->ins.subdivisionsPerMeasure;
     this->activeState.beats = this->ins.beatsPerMeasure;
-  }
-
-  if (gateOutputs) {
-    outs.downbeat = 0;
-    outs.truncate = 0;
-    outs.subdivision = 0;
-    outs.beat = 0;
-    outs.eom = 0;
   }
 
   if (outs.downbeat) {
